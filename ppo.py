@@ -81,10 +81,11 @@ def train(args):
             logging.StreamHandler(sys.stdout)  # 콘솔 출력도 포함
         ]
     )
-    
+    data_path = os.path.join(args.home, 'data', 'redial_processed_train.json')
+    train_data = prepare_data(data_path, rank, world_size, length=5000, is_shuffle=True)
     i = 0
     for epoch in range(TOTAL_EPOCHS):
-        train_data = prepare_data('/home/user/junpyo/Learning2Interact/data/redial_processed_train.json', rank, world_size, length=5000, is_shuffle=True)
+        
         prompts, responses, rewards, response_masks = [], [], [], []
 
         while i < len(train_data):
