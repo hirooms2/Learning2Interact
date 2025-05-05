@@ -168,11 +168,10 @@ def train(args):
             )
             prompts, responses, rewards, response_masks = [], [], [], []
 
-
-    if ppo_trainer.accelerator.is_main_process:
-        model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}")
-        ppo_trainer.save_pretrained(model_path)
-        logging.info("✅ 모델 저장 완료")
+        if ppo_trainer.accelerator.is_main_process:
+            model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_{epoch}")
+            ppo_trainer.save_pretrained(model_path)
+            logging.info("✅ 모델 저장 완료")
 
 if __name__ == '__main__':
     args = parse_args()

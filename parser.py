@@ -7,7 +7,7 @@ def parse_args():
     parser.add_argument('--max_new_tokens', type=int, default=256)
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--kg_dataset', type=str, default='redial')
-    parser.add_argument('--turn_num', type=int, default=3)
+    parser.add_argument('--turn_num', type=int, default=5)
     parser.add_argument('--topk', type=int, default=10)
     parser.add_argument('--api_key', type=str, default='')
     parser.add_argument('--model_path', type=str, default='')
