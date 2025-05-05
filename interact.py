@@ -80,8 +80,8 @@ def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, en
 
         seeker_prompt += f"Recommender: {recommender_text}\nSeeker:"
         seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()
-        crs_intent = seeker_full_response.split('2. Response: ')[0]
-        seeker_text = seeker_full_response.split('2. Response: ')[-1].split('Response: ')[-1]
+        crs_intent = seeker_full_response.split('2. Response:')[0].strip()
+        seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
         rec_success = rec_success and 'inquiry' not in crs_intent.lower()
 
         conv_dict += [{"role": "assistant", "content": recommender_text},
