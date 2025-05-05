@@ -72,7 +72,7 @@ def main(args):
         conv_dict = test_dataset[i]['dialog'].copy()
         target_items = test_dataset[i]['target_items']
         conv_dict, rec_success, original_conv_len = run_interaction(
-            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=True
+            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})

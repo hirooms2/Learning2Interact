@@ -22,7 +22,7 @@ from interact import get_conv, get_prompt, run_interaction
 # === 하이퍼파라미터 설정 ===
 MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 GAMMA = 0.9
-TOTAL_EPOCHS = 1
+TOTAL_EPOCHS = 2
 PPO_EPOCHS = 4
 BATCH_SIZE = 4
 LEARNING_RATE = 1e-5
