@@ -1,0 +1,10 @@
+*.json
+*.jsonl
+data/
+model_weights/
+results/
+save/
+wandb/
+__pycache__/
+*.pyc
+*.pt
