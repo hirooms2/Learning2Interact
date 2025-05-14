@@ -20,31 +20,31 @@ from interact import get_conv, get_prompt, run_interaction
 
 
 # === 하이퍼파라미터 설정 ===
-MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-GAMMA = 0.9
-TOTAL_EPOCHS = 2
-PPO_EPOCHS = 4
-BATCH_SIZE = 4
-LEARNING_RATE = 1e-5
-INIT_KL_COEF = 0.2
-LOG_WITH = 'None'
+# MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+# GAMMA = 0.9
+# TOTAL_EPOCHS = 2
+# PPO_EPOCHS = 4
+# BATCH_SIZE = 4
+# LEARNING_RATE = 1e-5
+# INIT_KL_COEF = 0.2
+# LOG_WITH = 'None'
 
 
-def create_ppo_trainer(peft_model, tokenizer):
+def create_ppo_trainer(args, peft_model, tokenizer):
 
     model = AutoModelForCausalLMWithValueHead(peft_model)
     model.is_peft_model = True
 
     ppo_config = PPOConfig(
-        model_name=MODEL_NAME,
-        ppo_epochs=PPO_EPOCHS,
-        learning_rate=LEARNING_RATE,
-        gamma=GAMMA,
+        model_name=args.model_name,
+        ppo_epochs=args.ppo_epoch,
+        learning_rate=args.learning_rate,
+        gamma=args.gamma,
         kl_penalty="kl",
-        init_kl_coef=INIT_KL_COEF,
+        init_kl_coef=args.init_kl_coef,
         # target_kl=TARGET_KL,
         # adap_kl_ctrl=ADAPTIVE_KL_CONTROL,
-        batch_size=BATCH_SIZE, 
+        batch_size=args.batch_size, 
         mini_batch_size=1
     )
 
@@ -54,13 +54,13 @@ def create_ppo_trainer(peft_model, tokenizer):
 
 def train(args):
     openai.api_key = args.api_key
-    tokenizer = setup_tokenizer(MODEL_NAME)
-    base_model = load_base_model(MODEL_NAME)
+    tokenizer = setup_tokenizer(args.model_name)
+    base_model = load_base_model(args.model_name)
     model = load_peft_model(base_model, args.model_path)
     model.resize_token_embeddings(len(tokenizer))
     model.config.pad_token_id = tokenizer.pad_token_id
 
-    ppo_trainer = create_ppo_trainer(model, tokenizer)
+    ppo_trainer = create_ppo_trainer(args, model, tokenizer)
     rank, world_size = ppo_trainer.accelerator.process_index, ppo_trainer.accelerator.num_processes
 
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
@@ -81,15 +81,17 @@ def train(args):
             logging.StreamHandler(sys.stdout)  # 콘솔 출력도 포함
         ]
     )
-    data_path = os.path.join(args.home, 'data', 'redial_processed_train.json')
-    train_data = prepare_data(data_path, rank, world_size, length=5000, is_shuffle=True)
-    i = 0
-    for epoch in range(TOTAL_EPOCHS):
+    data_path = os.path.join(args.home, 'data', args.train_data)
+    train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
+    dialog_id = args.start  # dialog id
+
+    for epoch in range(args.epoch):
         
         prompts, responses, rewards, response_masks = [], [], [], []
+        i = 0 # sample num
 
-        while i < len(train_data):
-            while len(prompts) < BATCH_SIZE and i < len(train_data):          
+        while i < len(train_data): 
+            while len(prompts) < args.batch_size and i < len(train_data):    
                 conv_dict = train_data[i]['dialog'].copy()
                 target_items = train_data[i]['target_items']
 
@@ -98,6 +100,7 @@ def train(args):
                 )
                 interaction_num = (len(conv_dict) - original_conv_len) // 2
                 i += 1
+                dialog_id += 1
 
                 if rec_success:
                     hit += 1
@@ -129,7 +132,8 @@ def train(args):
                     role_masks.append(role_mask)
 
                 response = prompt_response[len(prompt):]
-                reward = 1 if rec_success else -1
+                # reward = 1 if rec_success else -1
+                reward = args.reward if rec_success else -args.reward
                 response_mask = torch.cat(role_masks, dim=0).to(dtype=torch.long)
 
                 prompts.append(tokenizer(prompt, return_tensors="pt", add_special_tokens=False)["input_ids"].squeeze(0).to(dtype=torch.long))
@@ -137,7 +141,7 @@ def train(args):
                 rewards.append(torch.tensor([reward], dtype=torch.float32))
                 response_masks.append(response_mask)
 
-                logging.info(f"################################# Dialog Case {i} #################################")
+                logging.info(f"################################# Dialog Case {dialog_id} #################################")
 
                 for idx, utt in enumerate(conv_dict):
                     role = utt['role']
@@ -146,7 +150,9 @@ def train(args):
                     if idx == original_conv_len - 1:
                         logging.info("------------------------------------------------------------------------------------")
                 logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
-                hit_ratio = hit / (i + 1)
+                hit_cnt = hit
+                hit_ratio = hit / (i)
+                logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
                 logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
                 avg_success_turn = avg_turn / hit if hit != 0 else 0
                 logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")

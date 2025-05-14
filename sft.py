@@ -20,11 +20,11 @@ import sys
 from random import shuffle
 
 # === Hyperparameters ===
-MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-TOTAL_EPOCHS = 5
-LEARNING_RATE = 3e-5
-BATCH_SIZE = 4
-LOGGING_STEPS = 100
+# MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+# TOTAL_EPOCHS = 5
+# LEARNING_RATE = 3e-5
+# BATCH_SIZE = 4
+# LOGGING_STEPS = 100
 
 def load_base_model(model_name):
     bnb_config = BitsAndBytesConfig(
@@ -79,8 +79,8 @@ def prepare_dataset(data_path, tokenizer, rank, world_size):
     return dataset
 
 def main(args):
-    tokenizer = setup_tokenizer(MODEL_NAME)
-    base_model = load_base_model(MODEL_NAME)
+    tokenizer = setup_tokenizer(args.model_name)
+    base_model = load_base_model(args.model_name)
     base_model.resize_token_embeddings(len(tokenizer))
     base_model.config.pad_token_id = tokenizer.pad_token_id
 
@@ -102,8 +102,9 @@ def main(args):
         world_size = torch.distributed.get_world_size()
 
     # Prepare dataset
+    data_path = os.path.join(args.home, 'data', args.train_data)
     tokenized_dataset = prepare_dataset(
-        '/home/user/junpyo/Learning2Interact/data/redial_processed_train.json', tokenizer, rank, world_size
+        data_path, tokenizer, rank, world_size
     )
 
     # Logging 설정
@@ -122,11 +123,11 @@ def main(args):
 
     training_args = TrainingArguments(
         output_dir=model_path,
-        num_train_epochs=TOTAL_EPOCHS,
-        per_device_train_batch_size=BATCH_SIZE,
+        num_train_epochs=args.epoch,
+        per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=4,
-        learning_rate=LEARNING_RATE,
-        logging_steps=LOGGING_STEPS,
+        learning_rate=args.learning_rate,
+        logging_steps=args.logging_steps,
         save_strategy='no',
         bf16=True,
         remove_unused_columns=False,
