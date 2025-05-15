@@ -92,7 +92,7 @@ def train(args):
         train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
 
         # === 로그 파일 설정 ===
-        log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_E{epoch + 1}.txt')
+        log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_{args.log_name}_E{epoch + 1}.txt')
         setup_logger(log_file)
   
         prompts, responses, rewards, response_masks = [], [], [], []
@@ -174,6 +174,8 @@ def train(args):
             stats = ppo_trainer.step(prompts, responses, rewards, response_masks)
             # stats = ppo_trainer.step(prompts, responses, rewards)
 
+            current_lr = ppo_trainer.optimizer.param_groups[0]['lr']
+
             logging.info(
                 f"Loss(total): {stats['ppo/loss/total']:.4f} | "
                 f"Policy Loss: {stats['ppo/loss/policy']:.4f} | "
@@ -181,8 +183,10 @@ def train(args):
                 f"KL: {stats['objective/kl']:.6f} | "
                 f"Entropy: {stats['objective/entropy']:.2f} | "
                 f"Mean Reward: {stats['ppo/mean_scores']:.4f} | "
-                f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f}"
+                f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f} | "
+                f"LR: {current_lr:.6e}"
             )
+
             del prompts, responses, rewards, response_masks
             torch.cuda.empty_cache()
             prompts, responses, rewards, response_masks = [], [], [], []
