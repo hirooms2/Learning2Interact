@@ -52,6 +52,23 @@ def create_ppo_trainer(args, peft_model, tokenizer):
     return ppo_trainer
 
 
+def setup_logger(log_file_path):
+    # 기존 핸들러 제거
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        handlers=[
+            logging.FileHandler(log_file_path, encoding="utf-8"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+
 def train(args):
     openai.api_key = args.api_key
     tokenizer = setup_tokenizer(args.model_name)
@@ -67,28 +84,21 @@ def train(args):
     id2entity = {int(v): k for k, v in entity2id.items()}
     chatgpt = ChatGPT(args)
 
-    hit = 0
-    avg_turn = 0
-
-    # === 로그 파일 설정 ===
-    mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
-    log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}.txt')
-    logging.basicConfig(
-        level=logging.INFO,  # 출력 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        format="%(message)s",
-        handlers=[
-            logging.FileHandler(log_file, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout)  # 콘솔 출력도 포함
-        ]
-    )
     data_path = os.path.join(args.home, 'data', args.train_data)
-    train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
-    dialog_id = args.start  # dialog id
+    mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
 
     for epoch in range(args.epoch):
-        
+        train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
+
+        # === 로그 파일 설정 ===
+        log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_E{epoch + 1}.txt')
+        setup_logger(log_file)
+  
         prompts, responses, rewards, response_masks = [], [], [], []
         i = 0 # sample num
+        dialog_id = args.start  # dialog id
+        hit = 0
+        avg_turn = 0
 
         while i < len(train_data): 
             while len(prompts) < args.batch_size and i < len(train_data):    
@@ -175,7 +185,7 @@ def train(args):
             prompts, responses, rewards, response_masks = [], [], [], []
 
         if ppo_trainer.accelerator.is_main_process:
-            model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_{epoch}")
+            model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_E{epoch+1}")
             ppo_trainer.save_pretrained(model_path)
             logging.info("✅ 모델 저장 완료")
 
