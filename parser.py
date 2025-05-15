@@ -22,6 +22,8 @@ def parse_args():
     parser.add_argument('--ppo_epoch', type=int, default=4)
     parser.add_argument('--learning_rate', type=float, default=3e-5)
     parser.add_argument('--logging_steps', type=int, default=100)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
+    
     # PPO tuning
     parser.add_argument('--init_kl_coef', type=float, default=0.2)
     parser.add_argument('--gamma', type=float, default=0.9)

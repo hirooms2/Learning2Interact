@@ -44,7 +44,8 @@ def create_ppo_trainer(args, peft_model, tokenizer):
         init_kl_coef=args.init_kl_coef,
         # target_kl=TARGET_KL,
         # adap_kl_ctrl=ADAPTIVE_KL_CONTROL,
-        batch_size=args.batch_size, 
+        batch_size=args.batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
         mini_batch_size=1
     )
 
@@ -182,6 +183,8 @@ def train(args):
                 f"Mean Reward: {stats['ppo/mean_scores']:.4f} | "
                 f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f}"
             )
+            del prompts, responses, rewards, response_masks
+            torch.cuda.empty_cache()
             prompts, responses, rewards, response_masks = [], [], [], []
 
         if ppo_trainer.accelerator.is_main_process:
