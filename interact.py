@@ -31,7 +31,7 @@ def get_conv(args, model, tokenizer, context):
     full_prompt = get_prompt(tokenizer, context)
     model.eval()
 
-    inputs = tokenizer(full_prompt, return_tensors="pt").to("cuda")
+    inputs = tokenizer(full_prompt, return_tensors="pt")
         
     input_ids = inputs["input_ids"].to("cuda")
     attention_mask = inputs["attention_mask"].to("cuda")
