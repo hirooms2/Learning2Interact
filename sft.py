@@ -160,9 +160,15 @@ def main(args):
 
     # 모델 저장
     # LoRA adapter 저장
-    model.save_pretrained(model_path)
-    tokenizer.save_pretrained(model_path)    
-    logging.info("✅ 모델 저장 완료")
+    # model.save_pretrained(model_path)
+    # tokenizer.save_pretrained(model_path)    
+    # logging.info("✅ 모델 저장 완료")
+    # 모델 merge 및 저장 (LoRA → base weights에 합치기)
+    merged_model = model.merge_and_unload()
+    merged_model.save_pretrained(model_path + "_merged")
+    tokenizer.save_pretrained(model_path + "_merged")
+    logging.info("✅ Merge된 모델 저장 완료")
+
 
 if __name__ == "__main__":
     args = parse_args()

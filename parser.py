@@ -4,6 +4,11 @@ import os
 
 def parse_args():
     parser = argparse.ArgumentParser()
+
+    # Log
+    parser.add_argument('--log_name', type=str, default='log_name')
+
+    # Generation
     parser.add_argument('--max_new_tokens', type=int, default=256)
     parser.add_argument('--num_beams', type=int, default=1)
     # Dataset
@@ -15,6 +20,8 @@ def parse_args():
     # Interaction Setting
     parser.add_argument('--turn_num', type=int, default=5)
     parser.add_argument('--topk', type=int, default=10)
+    parser.add_argument('--last_turn_recommed', action='store_true')
+
     # Parameter
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--eval_batch_size', type=int, default=4)
@@ -28,6 +35,8 @@ def parse_args():
     parser.add_argument('--init_kl_coef', type=float, default=0.2)
     parser.add_argument('--gamma', type=float, default=0.9)
     parser.add_argument('--reward', type=float, default=1.0)
+    parser.add_argument('--adap_kl_ctrl', action='store_true')
+    
     # ChatGPT API
     parser.add_argument('--api_key', type=str, default='')
     # CRS Model

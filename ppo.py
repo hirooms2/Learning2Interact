@@ -13,6 +13,7 @@ from pytz import timezone
 from datetime import datetime
 import logging
 import sys
+from transformers import get_scheduler
 
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
 from interact import get_conv, get_prompt, run_interaction
@@ -45,11 +46,22 @@ def create_ppo_trainer(args, peft_model, tokenizer):
         # target_kl=TARGET_KL,
         # adap_kl_ctrl=ADAPTIVE_KL_CONTROL,
         batch_size=args.batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        # gradient_accumulation_steps=args.gradient_accumulation_steps,
         mini_batch_size=1
     )
+    
+    # Optimizer (optional: TRL creates one automatically if omitted)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
 
+    # Warmup + linear decay scheduler
+    lr_scheduler = get_scheduler(
+        name="linear",                 # or "cosine", "polynomial", etc.
+        optimizer=optimizer,
+        num_warmup_steps=100,
+        num_training_steps=100000,    # or set to large number or estimate (can be safely overshot)
+    )
     ppo_trainer = PPOTrainer(config=ppo_config, model=model, tokenizer=tokenizer)
+    # ppo_trainer = PPOTrainer(config=ppo_config, model=model, tokenizer=tokenizer, optimizer=optimizer, lr_scheduler=lr_scheduler)
     return ppo_trainer
 
 
@@ -102,12 +114,13 @@ def train(args):
         avg_turn = 0
 
         while i < len(train_data): 
+            hit_batch = 0
             while len(prompts) < args.batch_size and i < len(train_data):    
                 conv_dict = train_data[i]['dialog'].copy()
                 target_items = train_data[i]['target_items']
 
                 conv_dict, rec_success, original_conv_len = run_interaction(
-                    args, ppo_trainer.model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity
+                    args, ppo_trainer.model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=args.last_turn_recommed
                 )
                 interaction_num = (len(conv_dict) - original_conv_len) // 2
                 i += 1
@@ -115,6 +128,7 @@ def train(args):
 
                 if rec_success:
                     hit += 1
+                    hit_batch += 1
                     avg_turn += interaction_num
                 # else:
                 #     continue
@@ -164,7 +178,7 @@ def train(args):
                 hit_cnt = hit
                 hit_ratio = hit / (i)
                 logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
-                logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
+                logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")               
                 avg_success_turn = avg_turn / hit if hit != 0 else 0
                 logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
                 logging.info(f"###################################################################################")
@@ -175,7 +189,7 @@ def train(args):
             # stats = ppo_trainer.step(prompts, responses, rewards)
 
             current_lr = ppo_trainer.optimizer.param_groups[0]['lr']
-
+            hit_batch_ratio = hit_batch / len(prompt)
             logging.info(
                 f"Loss(total): {stats['ppo/loss/total']:.4f} | "
                 f"Policy Loss: {stats['ppo/loss/policy']:.4f} | "
@@ -184,7 +198,8 @@ def train(args):
                 f"Entropy: {stats['objective/entropy']:.2f} | "
                 f"Mean Reward: {stats['ppo/mean_scores']:.4f} | "
                 f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f} | "
-                f"LR: {current_lr:.6e}"
+                f"LR: {current_lr:.6e} | "
+                f"Hit_batch: {hit_batch_ratio:.3f}"
             )
 
             del prompts, responses, rewards, response_masks

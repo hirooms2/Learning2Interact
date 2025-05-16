@@ -46,7 +46,8 @@ def main(args):
     model.config.pad_token_id = tokenizer.pad_token_id
 
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
-    log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
+    # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
+    log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.txt')
     
     logging.basicConfig(
         level=logging.INFO,  # 출력 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -78,7 +79,7 @@ def main(args):
         conv_dict = test_dataset[i]['dialog'].copy()
         target_items = test_dataset[i]['target_items']
         conv_dict, rec_success, original_conv_len = run_interaction(
-            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=False
+            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=True
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})
