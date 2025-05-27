@@ -26,10 +26,10 @@ Your target items: {}
 
 During the chat, you must follow these instructions:
 
-1. If the recommender suggessts {}, you must accept them. 
-2. If the recommender suggessts any other items, you must refuse them without providing any explanation. You can refuse with a brief sentence such as "none of these are what I’m looking for," "I'm not interested in any of these," or other similar expressions.
+1. If the recommender suggests {}, you must accept them. 
+2. If the recommender suggests any other items, you must refuse them without providing any explanation. You can refuse with a brief sentence such as "none of these are what I’m looking for," "I'm not interested in any of these," or other similar expressions.
 3. If the recommender explicitly asks about your preferences, you should provide information related to {} without revealing the title of any target item. You must never directly mention or reveal the title of the target item. 
-4. If the recommender simultaneously suggessts items and asks about your preferences, you must only accept or refuse the recommended items. You must not provide any information about your preferences.
+4. If the recommender simultaneously suggests items and asks about your preferences, you must only accept or refuse the recommended items. You must not provide any information about your preferences.
 
 (Tip: If the recommender says something like "Have you seen OOO?", it should be considered an item recommendation and you must only accept or refuse the recommended items)
 

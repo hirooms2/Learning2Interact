@@ -11,16 +11,24 @@ def parse_args():
     # Generation
     parser.add_argument('--max_new_tokens', type=int, default=256)
     parser.add_argument('--num_beams', type=int, default=1)
+    parser.add_argument('--do_sample', action='store_true')
+    parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--top_p', type=float, default=0.9)
+    parser.add_argument('--top_k', type=int, default=50)
+
     # Dataset
     parser.add_argument('--kg_dataset', type=str, default='redial')
     parser.add_argument('--train_data', type=str, default='redial_processed_train.json')
     parser.add_argument('--test_data', type=str, default='redial_processed_test.json')
     parser.add_argument('--start', type=int, default=0)
     parser.add_argument('--end', type=int, default=5000)
+
     # Interaction Setting
     parser.add_argument('--turn_num', type=int, default=5)
     parser.add_argument('--topk', type=int, default=10)
     parser.add_argument('--last_turn_recommed', action='store_true')
+    parser.add_argument('--evaluate', action='store_true')
+    parser.add_argument('--max_train_turn', type=int, default=5)
 
     # Parameter
     parser.add_argument('--batch_size', type=int, default=8)
@@ -36,7 +44,9 @@ def parse_args():
     parser.add_argument('--gamma', type=float, default=0.9)
     parser.add_argument('--reward', type=float, default=1.0)
     parser.add_argument('--adap_kl_ctrl', action='store_true')
-    
+    parser.add_argument('--target_kl', type=int, default=1)
+    parser.add_argument('--ref_model', action='store_true')
+
     # ChatGPT API
     parser.add_argument('--api_key', type=str, default='')
     # CRS Model

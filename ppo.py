@@ -35,7 +35,16 @@ def create_ppo_trainer(args, peft_model, tokenizer):
 
     model = AutoModelForCausalLMWithValueHead(peft_model)
     model.is_peft_model = True
-
+    
+    # REF
+    if args.ref_model:
+        ref_model = peft_model.base_model.model  # PEFT 이전 base
+        ref_model = AutoModelForCausalLMWithValueHead(ref_model)
+        ref_model.is_peft_model = False
+        ref_model.eval()
+    else:
+        ref_model = None
+    
     ppo_config = PPOConfig(
         model_name=args.model_name,
         ppo_epochs=args.ppo_epoch,
@@ -43,8 +52,8 @@ def create_ppo_trainer(args, peft_model, tokenizer):
         gamma=args.gamma,
         kl_penalty="kl",
         init_kl_coef=args.init_kl_coef,
-        # target_kl=TARGET_KL,
-        # adap_kl_ctrl=ADAPTIVE_KL_CONTROL,
+        target_kl=args.target_kl,
+        adap_kl_ctrl=args.adap_kl_ctrl,
         batch_size=args.batch_size,
         # gradient_accumulation_steps=args.gradient_accumulation_steps,
         mini_batch_size=1
@@ -60,7 +69,7 @@ def create_ppo_trainer(args, peft_model, tokenizer):
         num_warmup_steps=100,
         num_training_steps=100000,    # or set to large number or estimate (can be safely overshot)
     )
-    ppo_trainer = PPOTrainer(config=ppo_config, model=model, tokenizer=tokenizer)
+    ppo_trainer = PPOTrainer(config=ppo_config, model=model, ref_model=ref_model, tokenizer=tokenizer)
     # ppo_trainer = PPOTrainer(config=ppo_config, model=model, tokenizer=tokenizer, optimizer=optimizer, lr_scheduler=lr_scheduler)
     return ppo_trainer
 
@@ -99,12 +108,13 @@ def train(args):
 
     data_path = os.path.join(args.home, 'data', args.train_data)
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
+    log_name = args.log_name
 
     for epoch in range(args.epoch):
         train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
 
         # === 로그 파일 설정 ===
-        log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_{args.log_name}_E{epoch + 1}.txt')
+        log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_{log_name}_E{epoch + 1}.txt')
         setup_logger(log_file)
   
         prompts, responses, rewards, response_masks = [], [], [], []
@@ -120,9 +130,12 @@ def train(args):
                 target_items = train_data[i]['target_items']
 
                 conv_dict, rec_success, original_conv_len = run_interaction(
-                    args, ppo_trainer.model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=args.last_turn_recommed
+                    args, ppo_trainer.model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=args.last_turn_recommed, is_train=True
                 )
                 interaction_num = (len(conv_dict) - original_conv_len) // 2
+                if interaction_num > args.max_train_turn:
+                    original_conv_len += 2 * (interaction_num - args.max_train_turn)
+
                 i += 1
                 dialog_id += 1
 
@@ -190,6 +203,8 @@ def train(args):
 
             current_lr = ppo_trainer.optimizer.param_groups[0]['lr']
             hit_batch_ratio = hit_batch / len(prompt)
+            current_kl_coef = ppo_trainer.kl_ctl.value
+
             logging.info(
                 f"Loss(total): {stats['ppo/loss/total']:.4f} | "
                 f"Policy Loss: {stats['ppo/loss/policy']:.4f} | "
@@ -199,6 +214,7 @@ def train(args):
                 f"Mean Reward: {stats['ppo/mean_scores']:.4f} | "
                 f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f} | "
                 f"LR: {current_lr:.6e} | "
+                f"KL Coef: {current_kl_coef:.6f} | "
                 f"Hit_batch: {hit_batch_ratio:.3f}"
             )
 
@@ -207,9 +223,29 @@ def train(args):
             prompts, responses, rewards, response_masks = [], [], [], []
 
         if ppo_trainer.accelerator.is_main_process:
-            model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_E{epoch+1}")
+            model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_{log_name}_E{epoch+1}")
             ppo_trainer.save_pretrained(model_path)
             logging.info("✅ 모델 저장 완료")
+
+            if args.ref_model:
+                # === ref_model 갱신 ===
+                # base_model은 이미 위에서 load_base_model()로 불러온 상태
+                # peft_model = PeftModel.from_pretrained(base_model, model_path)  # ⬅ 저장된 LoRA adapter 로드
+                peft_model = load_peft_model(base_model, model_path)
+
+                merged_model = peft_model.merge_and_unload()                    # ⬅ adapter 병합
+                ref_model = AutoModelForCausalLMWithValueHead(merged_model)    # ⬅ value head 추가
+                ref_model.is_peft_model = False
+                ref_model.eval()
+
+                ppo_trainer.ref_model = ref_model
+
+                # # === ref_model 갱신 ===
+                # merged_model = ppo_trainer.model.merge_and_unload()
+                # ref_model = AutoModelForCausalLMWithValueHead(merged_model)
+                # ref_model.is_peft_model = False
+                # ref_model.eval()
+                # ppo_trainer.ref_model = ref_model
 
 if __name__ == '__main__':
     args = parse_args()

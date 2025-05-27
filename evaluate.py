@@ -25,7 +25,7 @@ from chatgpt import ChatGPT
 from interact import get_conv, get_prompt, run_interaction
 import random
 
-random.seed(2025)
+random.seed(42)
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -74,13 +74,12 @@ def main(args):
     chatgpt = ChatGPT(args)
     hit = 0
     avg_turn = 0
+    sample_num = 0
     all_samples = []
     for i in tqdm(range(len(test_dataset))):
         conv_dict = test_dataset[i]['dialog'].copy()
         target_items = test_dataset[i]['target_items']
-
-        # TH: is_train False로
-        conv_dict, rec_success, original_conv_len = run_interaction(
+        conv_dict, rec_success, rec_list, original_conv_len = run_interaction(
             args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
@@ -93,28 +92,31 @@ def main(args):
         #         result_str += '-------------------------------------\n'
         #     result_str += f"{utt['role']}: {utt['content']}\n"
         # log_file.write(result_str + '\n\n')
+        for t, r in zip(target_items, rec_list):
+            sample_num += 1
+            if r:
+                hit += 1
+                avg_turn += interaction_num
 
-        if rec_success:
-            hit += 1
-            avg_turn += interaction_num
+            logging.info(f"################################# Dialog Case {sample_num} #################################")
 
-        logging.info(f"################################# Dialog Case {i} #################################")
-
-        for idx, utt in enumerate(conv_dict):
-            role = utt['role']
-            content = utt['content']
-            logging.info(f"{role}: {content}")
-            if idx == original_conv_len - 1:
-                logging.info("------------------------------------------------------------------------------------")
-        logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
-        hit_ratio = hit / (i + 1)
-        logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
-        avg_success_turn = avg_turn / hit if hit != 0 else 0
-        logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
-        logging.info(f"###################################################################################")
+            for idx, utt in enumerate(conv_dict):
+                role = utt['role']
+                content = utt['content']
+                logging.info(f"{role}: {content}")
+                if idx == original_conv_len - 1:
+                    logging.info("------------------------------------------------------------------------------------")
+            logging.info(f"[[[REC_SUCCESS: {r}]]]")
+            logging.info(f"[[[TARGET_ITEM: {t}]]]")
+            logging.info(f"[[[TARGET_ITEM_LIST: {target_items}]]]")
+            hit_ratio = hit / (sample_num)
+            logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
+            avg_success_turn = avg_turn / hit if hit != 0 else 0
+            logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
+            logging.info(f"###################################################################################")
 
 
-    hit_ratio = hit / len(test_dataset)
+    hit_ratio = hit / len(sample_num)
     avg_success_turn = avg_turn / hit if hit != 0 else 0
     logging.info(f"Hit_ratio: {hit_ratio:.3f}")
     logging.info(f"Avg_success_turn: {avg_success_turn:.3f}")
