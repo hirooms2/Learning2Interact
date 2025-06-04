@@ -10,6 +10,7 @@ import re
 import nltk
 from thefuzz import fuzz
 from few_shot import few_shot_blocks
+from few_shot_new import few_shot_blocks_new
 
 
 instruction = """You are a recommender engaging in a conversation with the user to provide recommendations.
@@ -44,7 +45,7 @@ def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add
     system_message = [{'role': 'system', 'content': instruction}]
     
     few_shot = []
-    for example in few_shot_blocks:
+    for example in few_shot_blocks_new:
         few_shot.extend(example)
 
     context = context_list

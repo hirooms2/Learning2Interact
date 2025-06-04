@@ -1,4 +1,4 @@
-few_shot_blocks = [
+few_shot_blocks_new = [
   [
     {"role": "assistant", "content": "Hi! What movie are you looking for?"},
     {"role": "user", "content": "I'm looking for some good family/kids movies! I absolutely love Moana (2016) and want to find some similar movies."},
