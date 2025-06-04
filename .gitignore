@@ -8,3 +8,5 @@ wandb/
 __pycache__/
 *.pyc
 *.pt
+hit_and_turn_calculator.py
+preprocessing.py

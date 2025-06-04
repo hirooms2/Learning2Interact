@@ -109,9 +109,9 @@ def train(args):
     data_path = os.path.join(args.home, 'data', args.train_data)
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     log_name = args.log_name
+    train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
 
     for epoch in range(args.epoch):
-        train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
 
         # === 로그 파일 설정 ===
         log_file = os.path.join(args.home, 'results', 'ppo', f'{mdhm}_{log_name}_E{epoch + 1}.txt')
@@ -122,31 +122,24 @@ def train(args):
         dialog_id = args.start  # dialog id
         hit = 0
         avg_turn = 0
+        sample_cnt = 0
 
         while i < len(train_data): 
             hit_batch = 0
             while len(prompts) < args.batch_size and i < len(train_data):    
-                conv_dict = train_data[i]['dialog'].copy()
+                default_conv_dict = train_data[i]['dialog'].copy()
                 target_items = train_data[i]['target_items']
+                base_turn = train_data[i]['base_turn']
 
-                conv_dict, rec_success, original_conv_len = run_interaction(
-                    args, ppo_trainer.model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=args.last_turn_recommed, is_train=True
+                conv_dict, rec_success, original_conv_len, _, _, _, _ = run_interaction(
+                    args, ppo_trainer.model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=args.last_turn_recommend, is_train=True
                 )
+
                 interaction_num = (len(conv_dict) - original_conv_len) // 2
                 if interaction_num > args.max_train_turn:
                     original_conv_len += 2 * (interaction_num - args.max_train_turn)
 
-                i += 1
-                dialog_id += 1
-
-                if rec_success:
-                    hit += 1
-                    hit_batch += 1
-                    avg_turn += interaction_num
-                # else:
-                #     continue
-                
-                prompt = get_prompt(tokenizer, conv_dict[:original_conv_len])
+                prompt = get_prompt(tokenizer, conv_dict[:original_conv_len], few_shot=args.few_shot)
                 prompt_response = prompt
                 role_masks = []
                 for cidx in range(original_conv_len, len(conv_dict) - 1):
@@ -157,7 +150,8 @@ def train(args):
                         tokenizer, 
                         conv_dict[:original_conv_len], 
                         conv_dict[original_conv_len:cidx + 1], 
-                        add_generation_prompt=is_user
+                        add_generation_prompt=is_user,
+                        few_shot=args.few_shot
                     )
 
                     # prompt 이후 새로운 토큰만 추출
@@ -171,7 +165,21 @@ def train(args):
 
                 response = prompt_response[len(prompt):]
                 # reward = 1 if rec_success else -1
-                reward = args.reward if rec_success else -args.reward
+                if args.diff_aware:
+                    if rec_success:
+                        if base_turn > 5 and interaction_num <= 3:
+                            reward = 1.3 # if interaction_num <= 2 else 1.1
+                        else:
+                            reward = 1 
+                    else:
+                        reward = -1
+                        # if base_turn <= 5 and base_turn <= 3:
+                        #     reward = -1.3 # if base_turn <= 2 else -1.1
+                        # else:
+                        #     reward = -1
+                else:
+                    reward = args.reward if rec_success else -args.reward
+                
                 response_mask = torch.cat(role_masks, dim=0).to(dtype=torch.long)
 
                 prompts.append(tokenizer(prompt, return_tensors="pt", add_special_tokens=False)["input_ids"].squeeze(0).to(dtype=torch.long))
@@ -179,7 +187,13 @@ def train(args):
                 rewards.append(torch.tensor([reward], dtype=torch.float32))
                 response_masks.append(response_mask)
 
-                logging.info(f"################################# Dialog Case {dialog_id} #################################")
+
+                if rec_success:
+                    hit += 1
+                    hit_batch += 1
+                    avg_turn += interaction_num
+                sample_cnt += 1
+                logging.info(f"################################# Dialog Case {dialog_id+1} #################################")
 
                 for idx, utt in enumerate(conv_dict):
                     role = utt['role']
@@ -189,13 +203,16 @@ def train(args):
                         logging.info("------------------------------------------------------------------------------------")
                 logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
                 hit_cnt = hit
-                hit_ratio = hit / (i)
+                hit_ratio = hit / sample_cnt
                 logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
                 logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")               
                 avg_success_turn = avg_turn / hit if hit != 0 else 0
                 logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
+                logging.info(f"[[[base_turn: {base_turn:.3f} | reward: {reward:.1f}]]]")
                 logging.info(f"###################################################################################")
-                
+
+                i += 1
+                dialog_id += 1
 
             ppo_trainer.config.batch_size = len(prompts)
             stats = ppo_trainer.step(prompts, responses, rewards, response_masks)

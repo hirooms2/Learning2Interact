@@ -22,10 +22,10 @@ from random import shuffle
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
 from torch.utils.data import Dataset, DataLoader
 from chatgpt import ChatGPT
-from interact import run_interaction
+from interact import get_conv, get_prompt, run_interaction
 import random
 
-random.seed(2025)
+random.seed(42)
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -48,8 +48,6 @@ def main(args):
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
     log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.txt')
-    json_path = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.json')
-    json_file = open(json_path, 'a', buffering=1, encoding='UTF-8')
     
     logging.basicConfig(
         level=logging.INFO,  # 출력 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -74,18 +72,15 @@ def main(args):
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
     id2entity = {int(v): k for k, v in entity2id.items()}
     chatgpt = ChatGPT(args)
-    dialog_id = 0
     hit = 0
     avg_turn = 0
+    sample_num = 0
     all_samples = []
     for i in tqdm(range(len(test_dataset))):
-        dialog_id += 1
         conv_dict = test_dataset[i]['dialog'].copy()
         target_items = test_dataset[i]['target_items']
-
-        # TH: is_train False로
-        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
-            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
+        conv_dict, rec_success, rec_list, original_conv_len = run_interaction(
+            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})
@@ -97,62 +92,31 @@ def main(args):
         #         result_str += '-------------------------------------\n'
         #     result_str += f"{utt['role']}: {utt['content']}\n"
         # log_file.write(result_str + '\n\n')
+        for t, r in zip(target_items, rec_list):
+            sample_num += 1
+            if r:
+                hit += 1
+                avg_turn += interaction_num
 
-        if rec_success:
-            hit += 1
-            avg_turn += interaction_num
+            logging.info(f"################################# Dialog Case {sample_num} #################################")
 
-        ## Logging Dictionary
-        output = {
-                'id': dialog_id,
-                'given_dialog': [],
-                'generated_dialog': [],
-                'rec_success' : None,
-                'hit_ratio' : None,
-                'rec_names' : None,
-                'rec_ids' : None,
-                'topk_names' : None,
-                'topk_ids' : None
-            }
+            for idx, utt in enumerate(conv_dict):
+                role = utt['role']
+                content = utt['content']
+                logging.info(f"{role}: {content}")
+                if idx == original_conv_len - 1:
+                    logging.info("------------------------------------------------------------------------------------")
+            logging.info(f"[[[REC_SUCCESS: {r}]]]")
+            logging.info(f"[[[TARGET_ITEM: {t}]]]")
+            logging.info(f"[[[TARGET_ITEM_LIST: {target_items}]]]")
+            hit_ratio = hit / (sample_num)
+            logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
+            avg_success_turn = avg_turn / hit if hit != 0 else 0
+            logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
+            logging.info(f"###################################################################################")
 
-        logging.info(f"################################# Dialog Case {i} #################################")
 
-        for idx, utt in enumerate(conv_dict):
-            role = utt['role']
-            content = utt['content']
-            role_content = {'role': role, 'content': content}
-            if idx < original_conv_len:
-                output['given_dialog'].append(role_content)
-            else:
-                output['generated_dialog'].append(role_content)
-            logging.info(f"{role}: {content}")
-            if idx == original_conv_len - 1:
-                logging.info("------------------------------------------------------------------------------------")
-        logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
-        hit_cnt = hit
-        hit_ratio = hit / (i + 1)
-        logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
-        logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
-        avg_success_turn = avg_turn / hit if hit != 0 else 0
-        logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
-        logging.info(f"[[[rec_names: {rec_names}]]]")
-        logging.info(f"[[[rec_ids: {rec_ids}]]]")
-        logging.info(f"[[[topk_names: {topk_names}]]]")
-        logging.info(f"[[[topk_ids: {topk_ids}]]]")        
-        
-        logging.info(f"###################################################################################")
-
-        output['rec_success'] = rec_success
-        output['hit_ratio'] = f"{hit_ratio:.3f}"
-        output['rec_names'] = rec_names
-        output['rec_ids'] = rec_ids
-        output['topk_names'] = topk_names
-        output['topk_ids'] = topk_ids
-
-        json_file.write(
-            json.dumps(output, ensure_ascii=False) + "\n")
-
-    hit_ratio = hit / len(test_dataset)
+    hit_ratio = hit / len(sample_num)
     avg_success_turn = avg_turn / hit if hit != 0 else 0
     logging.info(f"Hit_ratio: {hit_ratio:.3f}")
     logging.info(f"Avg_success_turn: {avg_success_turn:.3f}")

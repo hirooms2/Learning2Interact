@@ -1,125 +1,42 @@
 import json
 import os
-import torch
-from tqdm import tqdm
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    BitsAndBytesConfig,
-    TrainingArguments,
-    Trainer,
-    DataCollatorForLanguageModeling,
-    DataCollatorForSeq2Seq
-)
+
 from peft import LoraConfig, get_peft_model, TaskType
 from parser import parse_args
 from datetime import datetime
 from pytz import timezone
-import logging
-import openai
-import sys
-from random import shuffle
-from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
-from torch.utils.data import Dataset, DataLoader
-from chatgpt import ChatGPT
-from interact import get_conv, get_prompt, run_interaction
-import random
 
-random.seed(42)
+metric = {'cnt': 0, 'hit1': 0, 'hit5': 0, 'hit10': 0}
 
-# === Hyperparameters ===
-# MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-# TOTAL_EPOCHS = 5
-# LEARNING_RATE = 3e-5
-# BATCH_SIZE = 4
-# LOGGING_STEPS = 100
-
+def compute_hit(preds, label):
+    for j, k in enumerate([1, 5, 10]):
+        if label in preds[:k]:
+            metric[f'hit{k}'] += 1
 
 def main(args):
-    openai.api_key = args.api_key
-    model_name = args.model_name
-    tokenizer = setup_tokenizer(model_name)
-    model = load_base_model(model_name)
-    if args.model_path:
-        model = load_peft_model(model, args.model_path)
-    model.resize_token_embeddings(len(tokenizer))
-    model.config.pad_token_id = tokenizer.pad_token_id
+    log_path = os.path.join(args.home, 'results', args.log_mode, f"{args.log_name}.json")
+    # outputs = json.load(open(log_path, 'r', encoding='utf-8'))
+    outputs = []
+    with open(log_path, encoding='utf-8') as f:
+        lines = f.readlines()
+        for line in lines:
+            line = json.loads(line)
+            outputs.append(line)
 
-    mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
-    # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
-    log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.txt')
+    for sample in outputs:
+        labels = sample['rec_ids']
+        preds = sample['topk_ids']
+        for label in labels:
+            metric['cnt'] += 1
+            compute_hit(preds, label)
+
+    hit1 = metric['hit1'] / metric['cnt']
+    hit5 = metric['hit5'] / metric['cnt']
+    hit10 = metric['hit10'] / metric['cnt']
     
-    logging.basicConfig(
-        level=logging.INFO,  # 출력 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        format="%(message)s",
-        handlers=[
-            logging.FileHandler(log_file, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout)  # 콘솔 출력도 포함
-        ]
-    )
-
-    rank, world_size = 0, 1
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-
-    # Prepare dataset
-    data_path = os.path.join(args.home, 'data', args.test_data)
-    test_dataset = prepare_data(
-        data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=False
-    )
-
-    entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
-    id2entity = {int(v): k for k, v in entity2id.items()}
-    chatgpt = ChatGPT(args)
-    hit = 0
-    avg_turn = 0
-    sample_num = 0
-    all_samples = []
-    for i in tqdm(range(len(test_dataset))):
-        conv_dict = test_dataset[i]['dialog'].copy()
-        target_items = test_dataset[i]['target_items']
-        conv_dict, rec_success, rec_list, original_conv_len = run_interaction(
-            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=True, is_train=False
-        )
-        interaction_num = (len(conv_dict) - original_conv_len) // 2
-        all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})
-        # print(tokenizer.apply_chat_template(conv_dict, tokenize=False, add_generation_prompt=False))
-        # print()
-        # result_str = f'# Case: {i+1}\n'
-        # for idx, utt in enumerate(conv_dict):
-        #     if idx == original_conv_len:
-        #         result_str += '-------------------------------------\n'
-        #     result_str += f"{utt['role']}: {utt['content']}\n"
-        # log_file.write(result_str + '\n\n')
-        for t, r in zip(target_items, rec_list):
-            sample_num += 1
-            if r:
-                hit += 1
-                avg_turn += interaction_num
-
-            logging.info(f"################################# Dialog Case {sample_num} #################################")
-
-            for idx, utt in enumerate(conv_dict):
-                role = utt['role']
-                content = utt['content']
-                logging.info(f"{role}: {content}")
-                if idx == original_conv_len - 1:
-                    logging.info("------------------------------------------------------------------------------------")
-            logging.info(f"[[[REC_SUCCESS: {r}]]]")
-            logging.info(f"[[[TARGET_ITEM: {t}]]]")
-            logging.info(f"[[[TARGET_ITEM_LIST: {target_items}]]]")
-            hit_ratio = hit / (sample_num)
-            logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")
-            avg_success_turn = avg_turn / hit if hit != 0 else 0
-            logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
-            logging.info(f"###################################################################################")
-
-
-    hit_ratio = hit / len(sample_num)
-    avg_success_turn = avg_turn / hit if hit != 0 else 0
-    logging.info(f"Hit_ratio: {hit_ratio:.3f}")
-    logging.info(f"Avg_success_turn: {avg_success_turn:.3f}")
+    print(f"cnt: {metric['cnt']}")
+    print(f"hit@1 | hit@5 | hit@10")
+    print(' | '.join(['%.4f' % i for i in [hit1, hit5, hit10]]))
 
 
 if __name__ == "__main__":

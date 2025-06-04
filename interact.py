@@ -9,6 +9,7 @@ from tqdm import tqdm
 import re
 import nltk
 from thefuzz import fuzz
+from few_shot import few_shot_blocks
 
 
 instruction = """You are a recommender engaging in a conversation with the user to provide recommendations.
@@ -22,25 +23,52 @@ You must either recommend or ask about the user's preferences; you must not do b
 year_pattern = re.compile(r'\(\d+\)')
 
 
-def get_prompt(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True):
+def get_prompt(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True, few_shot: bool = False):
     
-    context = context_list[-5:]
+    if not few_shot:
+        return get_prompt_zeroshot(tokenizer, context_list, interaction_list, add_generation_prompt)
+    else:
+        return get_prompt_fewshot(tokenizer, context_list, interaction_list, add_generation_prompt)
+
+
+def get_prompt_zeroshot(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True):
+    # context = context_list[-5:]
+    context = context_list.copy()
     context.insert(0, {'role': 'system', 'content': instruction})
     context = context + interaction_list
     full_prompt = tokenizer.apply_chat_template(context, tokenize=False, add_generation_prompt=add_generation_prompt)
     
     return full_prompt
 
+def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True):
+    system_message = [{'role': 'system', 'content': instruction}]
+    
+    few_shot = []
+    for example in few_shot_blocks:
+        few_shot.extend(example)
+
+    context = context_list
+    full_context = system_message + few_shot + context + interaction_list
+
+    full_prompt = tokenizer.apply_chat_template(
+        full_context,
+        tokenize=False,
+        add_generation_prompt=add_generation_prompt
+    )
+
+    return full_prompt
+
 
 def get_conv(args, model, tokenizer, context):
-    full_prompt = get_prompt(tokenizer, context)
+
+    full_prompt = get_prompt(tokenizer, context, few_shot=args.few_shot)
+        
     model.eval()
 
     inputs = tokenizer(full_prompt, return_tensors="pt")
         
     input_ids = inputs["input_ids"].to("cuda")
     attention_mask = inputs["attention_mask"].to("cuda")
-    
     generation_config = GenerationConfig(
         num_beams=args.num_beams,
         num_return_sequences=args.num_beams,
@@ -69,7 +97,8 @@ def get_conv(args, model, tokenizer, context):
     return generated_responses
 
 
-def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommed=False, rec_success_recommend=False, is_train=True):
+def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
+    conv_dict = default_conv_dict.copy()
     original_conv_len = len(conv_dict)
     goal_item_str = ', '.join([f'"{item}"' for item in target_items])
     seeker_prompt = chatgpt.get_instruction(goal_item_str)
@@ -92,6 +121,10 @@ def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, en
             rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
             rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
             
+            rec_ids = rec_labels
+            rec_names = target_items
+            topk_ids = rec_items[0][:args.topk]
+            topk_names = [id2entity[item] for item in topk_ids]
             # TH: 정답 맞춘게 있으면 바로 패스 (불필요한 연산 줄이기 위해)
             if rec_success:
                 break
@@ -101,7 +134,7 @@ def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, en
         #     recommender_text = recommender_texts[0]
         rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
 
-        if t == args.turn_num - 1 and last_turn_recommed:
+        if t == args.turn_num - 1 and last_turn_recommend:
             recommender_text = f"With that in mind, here are some recommendations: {rec_items_str}"
 
         if is_train:
@@ -116,22 +149,22 @@ def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, en
         seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
         rec_success = rec_success and 'inquiry' not in crs_intent.lower()
 
-        if not is_train:
-            # Prevent from data leakage
-            goal_item_list = [id2entity[idx].strip() for idx in rec_labels]
-            goal_item_no_year_list = [year_pattern.sub('', id2entity[idx]).strip() for idx in rec_labels]
-            seeker_response_no_movie_list = []
+        # if not is_train:
+        #     # Prevent from data leakage
+        #     goal_item_list = [id2entity[idx].strip() for idx in rec_labels]
+        #     goal_item_no_year_list = [year_pattern.sub('', id2entity[idx]).strip() for idx in rec_labels]
+        #     seeker_response_no_movie_list = []
 
-            for sent in nltk.sent_tokenize(seeker_text):
-                use_sent = True
-                for rec_item_str in goal_item_list + goal_item_no_year_list:
-                    if fuzz.partial_ratio(rec_item_str.lower(), sent.lower()) > 90:
-                        use_sent = False
-                        break
-                if use_sent is True:
-                    seeker_response_no_movie_list.append(sent)
+        #     for sent in nltk.sent_tokenize(seeker_text):
+        #         use_sent = True
+        #         for rec_item_str in goal_item_list + goal_item_no_year_list:
+        #             if fuzz.partial_ratio(rec_item_str.lower(), sent.lower()) > 90:
+        #                 use_sent = False
+        #                 break
+        #         if use_sent is True:
+        #             seeker_response_no_movie_list.append(sent)
 
-            seeker_text = ' '.join(seeker_response_no_movie_list)
+        #     seeker_text = ' '.join(seeker_response_no_movie_list)
 
         conv_dict += [{"role": "assistant", "content": recommender_text},
                       {"role": "user", "content": seeker_text}]
@@ -139,7 +172,5 @@ def run_interaction(args, model, tokenizer, chatgpt, conv_dict, target_items, en
 
         if rec_success:
             break
-    if args.evaluate:
-        return conv_dict, rec_success, rec_list, original_conv_len
-    else:
-        return conv_dict, rec_success, original_conv_len
+
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
