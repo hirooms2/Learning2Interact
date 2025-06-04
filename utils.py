@@ -25,10 +25,11 @@ from peft import PeftModel
 def prepare_data(data_path, rank, world_size, start=0, end=0, is_shuffle=True):
     all_data = json.load(open(data_path, 'r', encoding='utf-8'))
     # start = 1191
-    if start and end:
+    if end:
         all_data = all_data[start:end]
     elif start:
         all_data = all_data[start:]
+        
     if is_shuffle:
         shuffle(all_data)
 
