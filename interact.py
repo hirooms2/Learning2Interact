@@ -45,7 +45,7 @@ def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add
     system_message = [{'role': 'system', 'content': instruction}]
     
     few_shot = []
-    for example in few_shot_blocks_new:
+    for example in few_shot_blocks:
         few_shot.extend(example)
 
     context = context_list
@@ -150,22 +150,22 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
         rec_success = rec_success and 'inquiry' not in crs_intent.lower()
 
-        # if not is_train:
-        #     # Prevent from data leakage
-        #     goal_item_list = [id2entity[idx].strip() for idx in rec_labels]
-        #     goal_item_no_year_list = [year_pattern.sub('', id2entity[idx]).strip() for idx in rec_labels]
-        #     seeker_response_no_movie_list = []
+        if not is_train and args.prevent_leakage:
+            # Prevent from data leakage
+            goal_item_list = [id2entity[idx].strip() for idx in rec_labels]
+            goal_item_no_year_list = [year_pattern.sub('', id2entity[idx]).strip() for idx in rec_labels]
+            seeker_response_no_movie_list = []
 
-        #     for sent in nltk.sent_tokenize(seeker_text):
-        #         use_sent = True
-        #         for rec_item_str in goal_item_list + goal_item_no_year_list:
-        #             if fuzz.partial_ratio(rec_item_str.lower(), sent.lower()) > 90:
-        #                 use_sent = False
-        #                 break
-        #         if use_sent is True:
-        #             seeker_response_no_movie_list.append(sent)
+            for sent in nltk.sent_tokenize(seeker_text):
+                use_sent = True
+                for rec_item_str in goal_item_list + goal_item_no_year_list:
+                    if fuzz.partial_ratio(rec_item_str.lower(), sent.lower()) > 90:
+                        use_sent = False
+                        break
+                if use_sent is True:
+                    seeker_response_no_movie_list.append(sent)
 
-        #     seeker_text = ' '.join(seeker_response_no_movie_list)
+            seeker_text = ' '.join(seeker_response_no_movie_list)
 
         conv_dict += [{"role": "assistant", "content": recommender_text},
                       {"role": "user", "content": seeker_text}]
