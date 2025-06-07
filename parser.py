@@ -32,7 +32,8 @@ def parse_args():
     parser.add_argument('--max_train_turn', type=int, default=5)
     parser.add_argument('--few_shot', action='store_true')
     parser.add_argument('--prevent_leakage', action='store_true')
-
+    parser.add_argument('--hardcore', action='store_true')
+    
     # Parameter
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--eval_batch_size', type=int, default=4)

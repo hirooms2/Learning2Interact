@@ -148,8 +148,13 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()
         crs_intent = seeker_full_response.split('2. Response:')[0].strip()
         seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
-        rec_success = rec_success and 'inquiry' not in crs_intent.lower()
+        is_recommend = 'inquiry' not in crs_intent.lower()
 
+        if not args.hardcore:
+            finish = rec_success and is_recommend
+        else:
+            finish = is_recommend
+        
         if not is_train and args.prevent_leakage:
             # Prevent from data leakage
             goal_item_list = [id2entity[idx].strip() for idx in rec_labels]
@@ -171,7 +176,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
                       {"role": "user", "content": seeker_text}]
         seeker_prompt += f"{seeker_text}\n"
 
-        if rec_success:
+        if finish:
             break
 
     return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
