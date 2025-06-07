@@ -33,8 +33,8 @@ def get_prompt(tokenizer, context_list, interaction_list: list = [], add_generat
 
 
 def get_prompt_zeroshot(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True):
-    # context = context_list[-5:]
-    context = context_list.copy()
+    context = context_list[-5:]
+    # context = context_list.copy()
     context.insert(0, {'role': 'system', 'content': instruction})
     context = context + interaction_list
     full_prompt = tokenizer.apply_chat_template(context, tokenize=False, add_generation_prompt=add_generation_prompt)
