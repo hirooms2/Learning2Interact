@@ -30,9 +30,11 @@ def parse_args():
     parser.add_argument('--last_turn_recommend', action='store_true')
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--max_train_turn', type=int, default=5)
+    parser.add_argument('--max_utterance_num', type=int, default=-100)
     parser.add_argument('--few_shot', action='store_true')
     parser.add_argument('--prevent_leakage', action='store_true')
     parser.add_argument('--hardcore', action='store_true')
+    parser.add_argument('--rec_success_recommend', action='store_true')
     
     # Parameter
     parser.add_argument('--batch_size', type=int, default=8)
@@ -44,9 +46,10 @@ def parse_args():
     
     # PPO tuning
     parser.add_argument('--ppo_epoch', type=int, default=4)
-    # parser.add_argument('--num_explore', type=int, default=1)
+    parser.add_argument('--num_explore', type=int, default=1)
     parser.add_argument('--init_kl_coef', type=float, default=0.2)
-    parser.add_argument('--gamma', type=float, default=0.9)
+    parser.add_argument('--gamma', type=float, default=1.0)
+    parser.add_argument('--lam', type=float, default=0.95)
     parser.add_argument('--reward', type=float, default=1.0)
     parser.add_argument('--adap_kl_ctrl', action='store_true')
     parser.add_argument('--target_kl', type=int, default=1)

@@ -132,39 +132,49 @@ def train(args):
                 target_items = train_data[i]['target_items']
                 base_turn = train_data[i]['base_turn']
 
-                for _ in range(args.num_explore):
-                    conv_dict, rec_success, original_conv_len, _, _, _, _ = run_interaction(
-                        args, ppo_trainer.model, tokenizer, chatgpt, default_conv_dict, target_items, 
-                        entity2id, id2entity, last_turn_recommend=args.last_turn_recommend, rec_success_recommend=args.rec_success_recommend, is_train=True
+                conv_dict, rec_success, original_conv_len, _, _, _, _ = run_interaction(
+                    args, ppo_trainer.model, tokenizer, chatgpt, default_conv_dict, target_items, 
+                    entity2id, id2entity, last_turn_recommend=args.last_turn_recommend, rec_success_recommend=args.rec_success_recommend, is_train=True
+                )
+
+                interaction_num = (len(conv_dict) - original_conv_len) // 2
+                if interaction_num > args.max_train_turn:
+                    original_conv_len += 2 * (interaction_num - args.max_train_turn)
+
+                prompt = get_prompt(tokenizer, conv_dict[:original_conv_len], few_shot=args.few_shot)
+                prompt_response = prompt
+                role_masks = []
+                for cidx in range(original_conv_len, len(conv_dict) - 1):
+                    is_user = conv_dict[cidx]['role'] == 'user'
+                    
+                    if is_user:
+                        continue
+
+                    # 텍스트 확장: 직전까지의 context로 생성
+                    prompt = get_prompt(
+                        tokenizer, 
+                        conv_dict[:original_conv_len], 
+                        conv_dict[original_conv_len:cidx], 
+                        add_generation_prompt=True,
+                        few_shot=args.few_shot
                     )
 
-                    interaction_num = (len(conv_dict) - original_conv_len) // 2
-                    if interaction_num > args.max_train_turn:
-                        original_conv_len += 2 * (interaction_num - args.max_train_turn)
+                    response = get_prompt(
+                        tokenizer, 
+                        conv_dict[:original_conv_len], 
+                        conv_dict[original_conv_len:cidx + 1], 
+                        add_generation_prompt=is_user,
+                        few_shot=args.few_shot
+                    )
 
-                    prompt = get_prompt(tokenizer, conv_dict[:original_conv_len], few_shot=args.few_shot)
-                    prompt_response = prompt
-                    role_masks = []
-                    for cidx in range(original_conv_len, len(conv_dict) - 1):
-                        is_user = conv_dict[cidx]['role'] == 'user'
+                    # prompt 이후 새로운 토큰만 추출
+                    delta_response = response[len(prompt_response):]
+                    prompt_response += delta_response
 
-                        # 텍스트 확장: 직전까지의 context로 생성
-                        response = get_prompt(
-                            tokenizer, 
-                            conv_dict[:original_conv_len], 
-                            conv_dict[original_conv_len:cidx + 1], 
-                            add_generation_prompt=is_user,
-                            few_shot=args.few_shot
-                        )
-
-                        # prompt 이후 새로운 토큰만 추출
-                        delta_response = response[len(prompt_response):]
-                        prompt_response += delta_response
-
-                        # 이 토큰 길이에 대한 마스크 생성
-                        token_len = len(tokenizer(delta_response, add_special_tokens=False).input_ids)
-                        role_mask = torch.ones(token_len, dtype=torch.long) if not is_user else torch.zeros(token_len, dtype=torch.long)
-                        role_masks.append(role_mask)
+                    # 이 토큰 길이에 대한 마스크 생성
+                    # token_len = len(tokenizer(delta_response, add_special_tokens=False).input_ids)
+                    # role_mask = torch.ones(token_len, dtype=torch.long) if not is_user else torch.zeros(token_len, dtype=torch.long)
+                    # role_masks.append(role_mask)
 
                     response = prompt_response[len(prompt):]
                     # reward = 1 if rec_success else -1
@@ -183,42 +193,42 @@ def train(args):
                     else:
                         reward = args.reward if rec_success else -args.reward
                     
-                    response_mask = torch.cat(role_masks, dim=0).to(dtype=torch.long)
+                    # response_mask = torch.cat(role_masks, dim=0).to(dtype=torch.long)
 
                     prompts.append(tokenizer(prompt, return_tensors="pt", add_special_tokens=False)["input_ids"].squeeze(0).to(dtype=torch.long))
                     responses.append(tokenizer(response, return_tensors="pt", add_special_tokens=False)["input_ids"].squeeze(0).to(dtype=torch.long))
                     rewards.append(torch.tensor([reward], dtype=torch.float32))
-                    response_masks.append(response_mask)
+                    # response_masks.append(response_mask)
 
 
-                    if rec_success:
-                        hit += 1
-                        hit_batch += 1
-                        avg_turn += interaction_num
-                    sample_cnt += 1
-                    logging.info(f"################################# Dialog Case {dialog_id+1} #################################")
+                if rec_success:
+                    hit += 1
+                    hit_batch += 1
+                    avg_turn += interaction_num
+                sample_cnt += 1
+                logging.info(f"################################# Dialog Case {dialog_id+1} #################################")
 
-                    for idx, utt in enumerate(conv_dict):
-                        role = utt['role']
-                        content = utt['content']
-                        logging.info(f"{role}: {content}")
-                        if idx == original_conv_len - 1:
-                            logging.info("------------------------------------------------------------------------------------")
-                    logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
-                    hit_cnt = hit
-                    hit_ratio = hit / sample_cnt
-                    logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
-                    logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")               
-                    avg_success_turn = avg_turn / hit if hit != 0 else 0
-                    logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
-                    logging.info(f"[[[base_turn: {base_turn:.3f} | reward: {reward:.1f}]]]")
-                    logging.info(f"###################################################################################")
+                for idx, utt in enumerate(conv_dict):
+                    role = utt['role']
+                    content = utt['content']
+                    logging.info(f"{role}: {content}")
+                    if idx == original_conv_len - 1:
+                        logging.info("------------------------------------------------------------------------------------")
+                logging.info(f"[[[REC_SUCCESS: {rec_success}]]]")
+                hit_cnt = hit
+                hit_ratio = hit / sample_cnt
+                logging.info(f"[[[hit_cnt: {hit_cnt:.3f}]]]")
+                logging.info(f"[[[hit_ratio: {hit_ratio:.3f}]]]")               
+                avg_success_turn = avg_turn / hit if hit != 0 else 0
+                logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
+                logging.info(f"[[[base_turn: {base_turn:.3f} | reward: {reward:.1f}]]]")
+                logging.info(f"###################################################################################")
 
                 i += 1
                 dialog_id += 1
 
             ppo_trainer.config.batch_size = len(prompts)
-            stats = ppo_trainer.step(prompts, responses, rewards, response_masks)
+            stats = ppo_trainer.step(prompts, responses, rewards)
             # stats = ppo_trainer.step(prompts, responses, rewards)
 
             current_lr = ppo_trainer.optimizer.param_groups[0]['lr']

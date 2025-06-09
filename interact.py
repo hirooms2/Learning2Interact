@@ -21,6 +21,11 @@ You must follow the instructions below during the chat:
 
 You must either recommend or ask about the user's preferences; you must not do both simultaneously."""
 
+
+instruction_recommend = """You are a recommender engaging in a conversation with the user to provide recommendations.
+You should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year)."""
+
+
 year_pattern = re.compile(r'\(\d+\)')
 
 
@@ -45,7 +50,7 @@ def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add
     system_message = [{'role': 'system', 'content': instruction}]
     
     few_shot = []
-    for example in few_shot_blocks:
+    for example in few_shot_blocks_new:
         few_shot.extend(example)
 
     context = context_list
@@ -135,13 +140,13 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         #     recommender_text = recommender_texts[0]
         rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
 
-        if t == args.turn_num - 1 and last_turn_recommend:
-            recommender_text = f"With that in mind, here are some recommendations: {rec_items_str}"
+        if (t == args.turn_num - 1 and last_turn_recommend) or (rec_success_recommend and rec_success):
+            recommender_text = f"Here are some recommendations: {rec_items_str}"
 
         if is_train:
             for target_item in target_items:
-                target_name = year_pattern.sub('', target_item).strip()
-                if target_name in rec_items_str:
+                # target_name = year_pattern.sub('', target_item).strip()
+                if target_item in rec_items_str:
                     rec_success = True
 
         seeker_prompt += f"Recommender: {recommender_text}\nSeeker:"
