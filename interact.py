@@ -10,7 +10,7 @@ import re
 import nltk
 from thefuzz import fuzz
 from few_shot import few_shot_blocks
-from few_shot_new import few_shot_blocks_new
+from few_shot_new import few_shot_blocks_new, few_shot_blocks_query
 
 
 instruction = """You are a recommender engaging in a conversation with the user to provide recommendations.
@@ -24,6 +24,10 @@ You must either recommend or ask about the user's preferences; you must not do b
 
 instruction_recommend = """You are a recommender engaging in a conversation with the user to provide recommendations.
 You should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year)."""
+
+instruction_query = """You are an assistant engaging in a conversation with the user to elicit her preference.
+You should ask the user about her favorite genres, actors, directors, story elements, or overall impressions.
+Do not recommend or mention any items while asking."""
 
 
 year_pattern = re.compile(r'\(\d+\)')
@@ -46,6 +50,7 @@ def get_prompt_zeroshot(tokenizer, context_list, interaction_list: list = [], ad
     
     return full_prompt
 
+
 def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True):
     system_message = [{'role': 'system', 'content': instruction}]
     
@@ -65,9 +70,33 @@ def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add
     return full_prompt
 
 
-def get_conv(args, model, tokenizer, context):
+def get_prompt_purpose(tokenizer, context_list, interaction_list: list = [], add_generation_prompt: bool = True, few_shot: bool = False, purpose='recommend'):
+    few_shot = []
 
-    full_prompt = get_prompt(tokenizer, context, few_shot=args.few_shot)
+    if purpose == 'query':
+        system_message = [{'role': 'system', 'content': instruction_query}]
+        for example in few_shot_blocks_query:
+            few_shot.extend(example)
+    else:
+        system_message = [{'role': 'system', 'content': instruction_recommend}]
+        for example in few_shot_blocks_new:
+            few_shot.extend(example)
+    
+    context = context_list
+    full_context = system_message + few_shot + context + interaction_list
+
+    full_prompt = tokenizer.apply_chat_template(
+        full_context,
+        tokenize=False,
+        add_generation_prompt=add_generation_prompt
+    )
+
+    return full_prompt
+
+
+def get_conv(args, model, tokenizer, full_prompt):
+
+    # full_prompt = get_prompt(tokenizer, context, few_shot=args.few_shot)
         
     model.eval()
 
@@ -113,7 +142,8 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
 
     rec_success = False
     for t in range(args.turn_num):
-        recommender_texts = get_conv(args, model, tokenizer, conv_dict)
+        full_prompt = get_prompt(tokenizer, conv_dict, few_shot=args.few_shot)
+        recommender_texts = get_conv(args, model, tokenizer, full_prompt)
         rec_labels = [entity2id[item] for item in target_items]
 
         # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
@@ -183,5 +213,58 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
 
         if finish:
             break
+
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
+
+
+def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
+    conv_dict = default_conv_dict.copy()
+    original_conv_len = len(conv_dict)
+    goal_item_str = ', '.join([f'"{item}"' for item in target_items])
+    seeker_prompt = chatgpt.get_instruction(goal_item_str)
+    for utt in conv_dict:
+        seeker_prompt += f"{'Recommender' if utt['role'] == 'assistant' else 'Seeker'}: {utt['content']}\n"
+
+    rec_success = False
+    for t in range(args.turn_num):
+        full_prompt_recommend = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='recommend')
+        recommender_texts = get_conv(args, model, tokenizer, full_prompt_recommend)
+
+        rec_labels = [entity2id[item] for item in target_items]
+
+        # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
+        # if not is_train:
+        recommender_text = recommender_texts[0]
+
+        rec_items = chatgpt.get_rec(conv_dict, recommender_text)
+        ## 수정 by BS
+        rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
+        rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
+        
+        rec_ids = rec_labels
+        rec_names = target_items
+        topk_ids = rec_items[0][:args.topk]
+        topk_names = [id2entity[item] for item in topk_ids]
+        
+        if rec_success or t == args.turn_num - 1:
+            rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
+            rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
+            recommender_text = f"Here are some recommendations: {rec_items_str}"
+            conv_dict += [{"role": "assistant", "content": recommender_text}]
+            break
+        
+        
+        full_prompt_query = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='query')
+        query_texts = get_conv(args, model, tokenizer, full_prompt_query)
+        query_text = query_texts[0]
+        conv_dict += [{"role": "assistant", "content": query_text}]
+
+        seeker_prompt += f"Recommender: {query_text}\nSeeker:"
+        seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()
+        crs_intent = seeker_full_response.split('2. Response:')[0].strip()
+        seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
+
+        conv_dict += [{"role": "user", "content": seeker_text}]
+        seeker_prompt += f"{seeker_text}\n"
 
     return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids

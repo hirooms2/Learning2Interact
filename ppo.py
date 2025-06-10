@@ -16,7 +16,7 @@ import sys
 from transformers import get_scheduler
 
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
-from interact import get_conv, get_prompt, run_interaction
+from interact import get_prompt, run_interaction
 
 
 
