@@ -32,7 +32,7 @@ instruction_gptcrs = """You are a recommender engaging in a conversation with th
 You must follow the instructions below during the chat:
 
 1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year). Each item should be listed without line breaks or spaces between them.
-For example,  follow this format when making recommendations: "Here are some recommendations: 1. Gone with the Wind (1939)2. Pride and Prejudice (1940)3. Wuthering Heights (1939)4. Rebecca (1940)5. The Remains of the Day (1993)6. A Room with a View (1985)7. The Age of Innocence (1993)8. The English Patient (1996)9. The Remains of the Day (1993)10. Atonement (2007)")
+For example, follow this format when making recommendations: "Here are some recommendations: 1. Gone with the Wind (1939)2. Pride and Prejudice (1940)3. Wuthering Heights (1939)4. Rebecca (1940)5. The Remains of the Day (1993)6. A Room with a View (1985)7. The Age of Innocence (1993)8. The English Patient (1996)9. The Remains of the Day (1993)10. Atonement (2007)")
 
 2. If you do not have sufficient confidence in the user's preferences, you should ask the user about their preferences.
 For example, you may ask: "You like horror movies. Can you be more specific? Do you prefer classic horror, supernatural horror, slasher movies, or something else?"
