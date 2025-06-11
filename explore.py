@@ -22,7 +22,7 @@ from random import shuffle
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
 from torch.utils.data import Dataset, DataLoader
 from chatgpt import ChatGPT
-from interact import run_explore
+from interact import run_explore, run_explore_gpt
 import random
 
 
@@ -87,7 +87,7 @@ def main(args):
         target_items = train_dataset[i]['target_items']
 
         # TH: is_train False로
-        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_explore(
+        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_explore_gpt(
             args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2

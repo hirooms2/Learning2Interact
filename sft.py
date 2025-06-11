@@ -25,8 +25,10 @@ from random import shuffle
 # LEARNING_RATE = 3e-5
 # BATCH_SIZE = 4
 # LOGGING_STEPS = 100
+import wandb
 
-def load_base_model(model_name):
+
+def load_base_model(model_name, model_path=''):
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.bfloat16,
@@ -34,7 +36,7 @@ def load_base_model(model_name):
         bnb_4bit_quant_type="nf4",
     )
     base_model = AutoModelForCausalLM.from_pretrained(
-        model_name,
+        model_name if model_path == '' else model_path,
         quantization_config=bnb_config,
         torch_dtype=torch.bfloat16,
         device_map="auto"
@@ -47,9 +49,9 @@ def setup_tokenizer(model_name):
     tokenizer.padding_side = "right"
     return tokenizer
 
-def prepare_dataset(data_path, tokenizer, rank, world_size):
+def prepare_dataset(data_path, tokenizer, rank, world_size, train_only_interaction=False):
     all_data = json.load(open(data_path, 'r', encoding='utf-8'))
-    # all_data = all_data[:1000]
+    # all_data = all_data[:10]
     shuffle(all_data)
 
     # 데이터 분산 처리
@@ -58,21 +60,23 @@ def prepare_dataset(data_path, tokenizer, rank, world_size):
     dataset = []
     
     for example in data:
-        if not example['success']:
-            continue
         
-        context = example['dialog'][-2:]
-        context_len = len(tokenizer.apply_chat_template(context, tokenize=True, add_generation_prompt=False))
-        interaction = [{"role": "assistant", "content": i['content'].split("\n11: ")[0]} if "I would recommend the following items: " in i['content'] else i for i in example['interaction'][:-1]]
-        context_interaction = context + interaction
-        
-        prompt = tokenizer.apply_chat_template(context_interaction, tokenize=False, add_generation_prompt=False)
-        if prompt in dataset:
-            continue
-        tokenized_prompt = tokenizer(prompt, truncation=True, max_length=512, add_special_tokens=False)
+        dialog = example['dialog']
+        interaction = example['interaction']
+        # context = dialog + interaction  
+        context = dialog[-5:] + interaction
+        original_context_len = len(tokenizer.apply_chat_template(dialog, tokenize=True, add_generation_prompt=True))
+        prompt = tokenizer.apply_chat_template(context, tokenize=False, add_generation_prompt=False)
+        # if prompt in dataset:
+        #     continue
+
+        # tokenized_prompt = tokenizer(prompt, truncation=True, max_length=1024, add_special_tokens=False)
+        tokenized_prompt = tokenizer(prompt, truncation=True, add_special_tokens=False)
+
         input_ids = tokenized_prompt.input_ids
         labels = input_ids.copy()
-        # labels = [token if idx >= context_len else -100 for idx, token in enumerate(input_ids)]
+        if train_only_interaction:
+            labels = [token if idx >= original_context_len else -100 for idx, token in enumerate(input_ids)]
         
         dataset.append({'input_ids':input_ids, "labels": labels})
         
@@ -83,6 +87,11 @@ def main(args):
     base_model = load_base_model(args.model_name)
     base_model.resize_token_embeddings(len(tokenizer))
     base_model.config.pad_token_id = tokenizer.pad_token_id
+    
+    wandb.init(
+        project="learning2interact",  # 원하는 wandb 프로젝트 이름
+        name=args.log_name,           # 실험 run 이름
+    )
 
     # LoRA Configuration
     lora_config = LoraConfig(
@@ -102,14 +111,15 @@ def main(args):
         world_size = torch.distributed.get_world_size()
 
     # Prepare dataset
-    data_path = os.path.join(args.home, 'data', args.train_data)
+    data_path = os.path.join(args.home, 'data', 'redial_processed_train_sft.json')
     tokenized_dataset = prepare_dataset(
-        data_path, tokenizer, rank, world_size
+        data_path, tokenizer, rank, world_size, args.train_only_interaction
     )
 
     # Logging 설정
     mdhm = datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S')
-    log_file = os.path.join(args.home, 'results', 'sft', f'{mdhm}.txt')
+    log_name = args.log_name
+    log_file = os.path.join(args.home, 'results', 'sft', f'sft_{mdhm}_{log_name}.txt')
     logging.basicConfig(
         level=logging.INFO,
         format="%(message)s",
@@ -119,18 +129,19 @@ def main(args):
         ]
     )
     # mdhm = datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S')
-    model_path = os.path.join(args.home, 'model_weights', f"sft_model_{mdhm}")
+    model_path = os.path.join(args.home, 'model_weights', f"sft_model_{mdhm}_{log_name}")
 
     training_args = TrainingArguments(
         output_dir=model_path,
         num_train_epochs=args.epoch,
         per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
         logging_steps=args.logging_steps,
         save_strategy='no',
         bf16=True,
         remove_unused_columns=False,
+        report_to='wandb'
         # logging_dir="./logs",
         # report_to="wandb" if args.use_wandb else "none",
     )
@@ -160,9 +171,10 @@ def main(args):
 
     # 모델 저장
     # LoRA adapter 저장
-    # model.save_pretrained(model_path)
-    # tokenizer.save_pretrained(model_path)    
-    # logging.info("✅ 모델 저장 완료")
+    model.save_pretrained(model_path)
+    tokenizer.save_pretrained(model_path)    
+    logging.info("✅ PEFT 모델 저장 완료")
+    
     # 모델 merge 및 저장 (LoRA → base weights에 합치기)
     merged_model = model.merge_and_unload()
     merged_model.save_pretrained(model_path + "_merged")

@@ -71,7 +71,9 @@ def load_peft_model(model, model_path):
     return peft_model
 
 def setup_tokenizer(model_name):
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-    tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        print('Set a pad token as <|pad|> in the tokenizer')
+        tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
     tokenizer.padding_side = "left"
     return tokenizer

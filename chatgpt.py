@@ -125,7 +125,7 @@ class ChatGPT():
         return response
     
 
-    def annotate_completion(self, prompt, logit_bias=None):
+    def annotate_completion(self, prompt, logit_bias=None, model_name='gpt-4.1-mini'):
         if logit_bias is None:
             logit_bias = {}
 
@@ -137,8 +137,7 @@ class ChatGPT():
         ):
             with attempt:
                 response = openai.ChatCompletion.create(
-                    model='gpt-4.1-mini', 
-                    # model='gpt-4o', 
+                    model=model_name, 
                     messages=[
                         {'role': 'user', 'content': prompt}
                     ], 

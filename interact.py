@@ -268,3 +268,53 @@ def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items
         seeker_prompt += f"{seeker_text}\n"
 
     return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
+
+
+def run_explore_gpt(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
+    conv_dict = default_conv_dict.copy()
+    original_conv_len = len(conv_dict)
+    goal_item_str = ', '.join([f'"{item}"' for item in target_items])
+    seeker_prompt = chatgpt.get_instruction(goal_item_str)
+    crs_prompt = instruction + "\n\n"
+    for utt in conv_dict:
+        seeker_prompt += f"{'Recommender' if utt['role'] == 'assistant' else 'Seeker'}: {utt['content']}\n"
+        crs_prompt += f"{'Recommender' if utt['role'] == 'assistant' else 'Seeker'}: {utt['content']}\n"
+
+    rec_success = False
+    rec_labels = [entity2id[item] for item in target_items]
+
+    for t in range(args.turn_num):
+
+        recommender_text = chatgpt.annotate_completion(crs_prompt, model_name='gpt-4.1').strip()
+        rec_items = chatgpt.get_rec(conv_dict, recommender_text)
+        ## 수정 by BS
+        rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
+        rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
+        
+        rec_ids = rec_labels
+        rec_names = target_items
+        topk_ids = rec_items[0][:args.topk]
+        topk_names = [id2entity[item] for item in topk_ids]
+        
+        if rec_success or t == args.turn_num - 1:
+            rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
+            rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
+            recommender_text = f"Here are some recommendations: {rec_items_str}"
+        conv_dict += [{"role": "assistant", "content": recommender_text}]
+
+        seeker_prompt += f"Recommender: {recommender_text}\nSeeker: "
+        crs_prompt += f"Recommender: {recommender_text}\nSeeker: "
+
+        seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()
+        crs_intent = seeker_full_response.split('2. Response:')[0].strip()
+        seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
+        is_recommend = 'inquiry' not in crs_intent.lower()
+
+        conv_dict += [{"role": "user", "content": seeker_text}]
+        seeker_prompt += f"{seeker_text}\n"
+        crs_prompt += f"{seeker_text}\n"
+
+        if is_recommend and rec_success:
+            break
+
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
