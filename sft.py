@@ -83,8 +83,8 @@ def prepare_dataset(data_path, tokenizer, rank, world_size, train_only_interacti
         # if prompt in dataset:
         #     continue
 
-        tokenized_prompt = tokenizer(prompt, truncation=True, max_length=512, add_special_tokens=False)
-        # tokenized_prompt = tokenizer(prompt, truncation=True, add_special_tokens=False)
+        # tokenized_prompt = tokenizer(prompt, truncation=True, max_length=512, add_special_tokens=False)
+        tokenized_prompt = tokenizer(prompt, truncation=True, add_special_tokens=False)
 
         input_ids = tokenized_prompt.input_ids
         labels = input_ids.copy()
