@@ -40,11 +40,11 @@ def main(args):
     model_name = args.model_name
     tokenizer = setup_tokenizer(model_name)
     model = load_base_model(model_name)
-    if args.model_path:
-        model = load_peft_model(model, args.model_path)
+
     model.resize_token_embeddings(len(tokenizer))
     model.config.pad_token_id = tokenizer.pad_token_id
-
+    if args.model_path:
+        model = load_peft_model(model, args.model_path)
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
     log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.txt')
