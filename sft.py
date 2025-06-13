@@ -18,6 +18,7 @@ from pytz import timezone
 import logging
 import sys
 from random import shuffle
+from interact import instruction
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -29,6 +30,14 @@ import wandb
 
 
 def load_base_model(model_name, model_path=''):
+    device_map = {"": 0}
+
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    print("world_size: %d" % world_size)
+    if world_size != 1:
+        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
+        print(device_map)
+
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.bfloat16,
@@ -39,7 +48,7 @@ def load_base_model(model_name, model_path=''):
         model_name if model_path == '' else model_path,
         quantization_config=bnb_config,
         torch_dtype=torch.bfloat16,
-        device_map="auto"
+        device_map=device_map
     )
     return base_model
 
@@ -61,17 +70,21 @@ def prepare_dataset(data_path, tokenizer, rank, world_size, train_only_interacti
     
     for example in data:
         
-        dialog = example['dialog']
-        interaction = example['interaction']
-        # context = dialog + interaction  
-        context = dialog[-5:] + interaction
+        dialog = example['dialog'][-5:]
+        dialog.insert(0, {'role': 'system', 'content': instruction})
+
+        interaction = example['interaction'][:-1]
+        # context = dialog + interaction 
+ 
+        context = dialog + interaction
+
         original_context_len = len(tokenizer.apply_chat_template(dialog, tokenize=True, add_generation_prompt=True))
         prompt = tokenizer.apply_chat_template(context, tokenize=False, add_generation_prompt=False)
         # if prompt in dataset:
         #     continue
 
-        # tokenized_prompt = tokenizer(prompt, truncation=True, max_length=1024, add_special_tokens=False)
-        tokenized_prompt = tokenizer(prompt, truncation=True, add_special_tokens=False)
+        tokenized_prompt = tokenizer(prompt, truncation=True, max_length=512, add_special_tokens=False)
+        # tokenized_prompt = tokenizer(prompt, truncation=True, add_special_tokens=False)
 
         input_ids = tokenized_prompt.input_ids
         labels = input_ids.copy()
@@ -88,10 +101,10 @@ def main(args):
     base_model.resize_token_embeddings(len(tokenizer))
     base_model.config.pad_token_id = tokenizer.pad_token_id
     
-    wandb.init(
-        project="learning2interact",  # 원하는 wandb 프로젝트 이름
-        name=args.log_name,           # 실험 run 이름
-    )
+    # wandb.init(
+    #     project="learning2interact",  # 원하는 wandb 프로젝트 이름
+    #     name=args.log_name,           # 실험 run 이름
+    # )
 
     # LoRA Configuration
     lora_config = LoraConfig(
@@ -111,7 +124,7 @@ def main(args):
         world_size = torch.distributed.get_world_size()
 
     # Prepare dataset
-    data_path = os.path.join(args.home, 'data', 'redial_processed_train_sft.json')
+    data_path = os.path.join(args.home, 'data', 'redial_processed_train_sft_gpt.json')   # BS수정
     tokenized_dataset = prepare_dataset(
         data_path, tokenizer, rank, world_size, args.train_only_interaction
     )
@@ -132,6 +145,7 @@ def main(args):
     model_path = os.path.join(args.home, 'model_weights', f"sft_model_{mdhm}_{log_name}")
 
     training_args = TrainingArguments(
+        deepspeed=args.deepspeed if args.deepspeed != '' else None,
         output_dir=model_path,
         num_train_epochs=args.epoch,
         per_device_train_batch_size=args.batch_size,
@@ -140,8 +154,9 @@ def main(args):
         logging_steps=args.logging_steps,
         save_strategy='no',
         bf16=True,
+        fp16=False,  # fp16,
         remove_unused_columns=False,
-        report_to='wandb'
+        # report_to='wandb'
         # logging_dir="./logs",
         # report_to="wandb" if args.use_wandb else "none",
     )
@@ -175,11 +190,11 @@ def main(args):
     tokenizer.save_pretrained(model_path)    
     logging.info("✅ PEFT 모델 저장 완료")
     
-    # 모델 merge 및 저장 (LoRA → base weights에 합치기)
-    merged_model = model.merge_and_unload()
-    merged_model.save_pretrained(model_path + "_merged")
-    tokenizer.save_pretrained(model_path + "_merged")
-    logging.info("✅ Merge된 모델 저장 완료")
+    # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
+    # merged_model = model.merge_and_unload()
+    # merged_model.save_pretrained(model_path + "_merged")
+    # tokenizer.save_pretrained(model_path + "_merged")
+    # logging.info("✅ Merge된 모델 저장 완료")
 
 
 if __name__ == "__main__":

@@ -59,6 +59,10 @@ def parse_args():
     # SFT
     parser.add_argument('--train_only_interaction', action='store_true')
 
+    # Deepspeed
+    parser.add_argument('--deepspeed', type=str, default='')
+    parser.add_argument('--local_rank', type=int, default=-1)
+
     # ChatGPT API
     parser.add_argument('--api_key', type=str, default='')
 
