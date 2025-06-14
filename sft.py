@@ -124,7 +124,9 @@ def main(args):
         world_size = torch.distributed.get_world_size()
 
     # Prepare dataset
-    data_path = os.path.join(args.home, 'data', 'redial_processed_train_sft_gpt.json')   # BS수정
+#    data_path = os.path.join(args.home, 'data', 'redial_processed_train_sft_gpt_turn3.json')   # BS수정
+    data_path = os.path.join(args.home, 'data', args.train_data)   # 'redial_processed_train_sft_gpt.json'
+
     tokenized_dataset = prepare_dataset(
         data_path, tokenizer, rank, world_size, args.train_only_interaction
     )
@@ -185,10 +187,11 @@ def main(args):
     trainer.train()
 
     # 모델 저장
-    # LoRA adapter 저장
-    model.save_pretrained(model_path)
-    tokenizer.save_pretrained(model_path)    
-    logging.info("✅ PEFT 모델 저장 완료")
+    # LoRA adapter 저장     
+    if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        model.save_pretrained(model_path)
+        tokenizer.save_pretrained(model_path)    
+        logging.info("✅ PEFT 모델 저장 완료")
     
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
     # merged_model = model.merge_and_unload()
