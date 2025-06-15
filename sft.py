@@ -196,10 +196,13 @@ def main(args):
     local_rank = int(os.environ.get("LOCAL_RANK") or 0)
     print(f"[RANK {local_rank}] Saving model...", flush=True)
     if local_rank == 0:
-        print(f"[RANK {local_rank}] Saving model......", flush=True)
+        print("➡ model.save_pretrained()", flush=True)
         model.save_pretrained(model_path)
+        print("✅ model 저장됨", flush=True)
+
+        print("➡ tokenizer.save_pretrained()", flush=True)
         tokenizer.save_pretrained(model_path)
-        print(f"[RANK {local_rank}] ✅ PEFT 모델 저장 완료", flush=True)
+        print("✅ tokenizer 저장됨", flush=True)
 
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
