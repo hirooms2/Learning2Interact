@@ -185,6 +185,7 @@ def main(args):
     # 학습 시작
     logging.info("🚀 SFT 학습 시작")
     trainer.train()
+    logging.info("✅ Trainer.train() finished")
 
     # 모델 저장
     # LoRA adapter 저장     
@@ -193,10 +194,12 @@ def main(args):
     # print(int(os.environ.get("LOCAL_RANK", 0)))
     # if trainer.is_world_process_zero():
     local_rank = int(os.environ.get("LOCAL_RANK") or 0)
+    print(f"[RANK {local_rank}] Saving model...", flush=True)
     if local_rank == 0:
         model.save_pretrained(model_path)
-        tokenizer.save_pretrained(model_path)    
-        logging.info("✅ PEFT 모델 저장 완료")
+        tokenizer.save_pretrained(model_path)
+        print(f"[RANK {local_rank}] ✅ PEFT 모델 저장 완료", flush=True)
+
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
     # merged_model = model.merge_and_unload()
