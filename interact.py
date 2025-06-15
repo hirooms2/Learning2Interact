@@ -42,6 +42,7 @@ You must either recommend or ask about the user's preferences; you must not do b
 
 """
 
+
 year_pattern = re.compile(r'\(\d+\)')
 
 
@@ -282,7 +283,7 @@ def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items
     return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
 
 
-def run_explore_gpt(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
+def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
     conv_dict = default_conv_dict.copy()
     original_conv_len = len(conv_dict)
     goal_item_str = ', '.join([f'"{item}"' for item in target_items])

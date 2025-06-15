@@ -188,7 +188,8 @@ def main(args):
 
     # 모델 저장
     # LoRA adapter 저장     
-    if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+
+    if trainer.accelerator.is_main_process:
         model.save_pretrained(model_path)
         tokenizer.save_pretrained(model_path)    
         logging.info("✅ PEFT 모델 저장 완료")

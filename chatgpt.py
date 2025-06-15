@@ -15,6 +15,7 @@ from tenacity.wait import wait_base
 from thefuzz import fuzz
 from tqdm import tqdm
 
+import re
 
 def my_before_sleep(retry_state):
     logger.debug(f'Retrying: attempt {retry_state.attempt_number} ended with: {retry_state.outcome}, spend {retry_state.seconds_since_start} in total')
@@ -154,7 +155,16 @@ class ChatGPT():
         for context in context_list[-1:]:
             # conv_str += f"{context['role']}: {context['content']} "
             conv_str += f"{context['role']}: {context['content']}"
-            
+        
+
+        chunks = re.split(r'(?=\d+\.)', conv_str)
+            # 항목 필터링: 숫자. 로 시작하는 애들만
+        items = [
+            chunk.strip()
+            for chunk in chunks
+            if re.match(r'\d+\.', chunk.strip())
+        ]
+
         conv_embed = self.annotate(conv_str)['data'][0]['embedding']
         conv_embed = np.asarray(conv_embed).reshape(1, -1)
         

@@ -36,13 +36,6 @@ import random
 
 def main(args):
     openai.api_key = args.api_key
-    model_name = args.model_name
-    tokenizer = setup_tokenizer(model_name)
-    model = load_base_model(model_name)
-    if args.model_path:
-        model = load_peft_model(model, args.model_path)
-    model.resize_token_embeddings(len(tokenizer))
-    model.config.pad_token_id = tokenizer.pad_token_id
 
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
@@ -88,7 +81,7 @@ def main(args):
 
         # TH: is_train False로
         conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_explore_gpt(
-            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
+            args, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})
