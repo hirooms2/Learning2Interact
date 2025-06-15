@@ -9,7 +9,8 @@ from transformers import (
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling,
-    DataCollatorForSeq2Seq
+    DataCollatorForSeq2Seq,
+    TrainerState, TrainerControl, TrainerCallback
 )
 from peft import LoraConfig, get_peft_model, TaskType
 from parser import parse_args
@@ -29,6 +30,23 @@ from interact import instruction
 import wandb
 
 
+
+class QueryEvalCallback(TrainerCallback):
+    def __init__(self, output_dir):
+        self.saved_model_path = output_dir
+
+    def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        wrapper_model = kwargs['model']  # 전체 wrapper 모델
+        peft_model = wrapper_model.model  # PEFT 모델 내부
+        epoch = state.epoch
+        path = os.path.join(self.saved_model_path, f'E{int(epoch)}')
+
+        # 1. PEFT LoRA 파라미터만 저장
+        peft_model.save_pretrained(path)
+        # 3. config도 같이 저장
+        peft_model.config.save_pretrained(path)
+
+        
 def load_base_model(model_name, model_path=''):
     device_map = {"": 0}
 
@@ -148,7 +166,7 @@ def main(args):
 
     training_args = TrainingArguments(
         deepspeed=args.deepspeed if args.deepspeed != '' else None,
-        output_dir=model_path,
+        # output_dir=model_path,
         num_train_epochs=args.epoch,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -161,6 +179,7 @@ def main(args):
         # report_to='wandb'
         # logging_dir="./logs",
         # report_to="wandb" if args.use_wandb else "none",
+
     )
 
     # data_collator = DataCollatorForSeq2Seq(
@@ -180,6 +199,8 @@ def main(args):
         train_dataset=tokenized_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
+        callbacks=[QueryEvalCallback(model_path)]
+
     )
 
     # 학습 시작
@@ -193,16 +214,16 @@ def main(args):
     # if trainer.accelerator.is_main_process:
     # print(int(os.environ.get("LOCAL_RANK", 0)))
     # if trainer.is_world_process_zero():
-    local_rank = int(os.environ.get("LOCAL_RANK") or 0)
-    print(f"[RANK {local_rank}] Saving model...", flush=True)
-    if local_rank == 0:
-        print("➡ model.save_pretrained()", flush=True)
-        model.save_pretrained(model_path)
-        print("✅ model 저장됨", flush=True)
+    # local_rank = int(os.environ.get("LOCAL_RANK") or 0)
+    # print(f"[RANK {local_rank}] Saving model...", flush=True)
+    # if local_rank == 0:
+    #     print("➡ model.save_pretrained()", flush=True)
+    #     model.save_pretrained(model_path)
+    #     print("✅ model 저장됨", flush=True)
 
-        print("➡ tokenizer.save_pretrained()", flush=True)
-        tokenizer.save_pretrained(model_path)
-        print("✅ tokenizer 저장됨", flush=True)
+    #     print("➡ tokenizer.save_pretrained()", flush=True)
+    #     tokenizer.save_pretrained(model_path)
+    #     print("✅ tokenizer 저장됨", flush=True)
 
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
