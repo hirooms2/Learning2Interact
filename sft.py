@@ -192,9 +192,11 @@ def main(args):
     # if trainer.accelerator.is_main_process:
     # print(int(os.environ.get("LOCAL_RANK", 0)))
     # if trainer.is_world_process_zero():
-    model.save_pretrained(model_path)
-    tokenizer.save_pretrained(model_path)    
-    logging.info("✅ PEFT 모델 저장 완료")
+    local_rank = int(os.environ.get("LOCAL_RANK") or 0)
+    if local_rank == 0:
+        model.save_pretrained(model_path)
+        tokenizer.save_pretrained(model_path)    
+        logging.info("✅ PEFT 모델 저장 완료")
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
     # merged_model = model.merge_and_unload()
