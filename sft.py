@@ -191,7 +191,7 @@ def main(args):
 
     # if trainer.accelerator.is_main_process:
     print(int(os.environ.get("LOCAL_RANK", 0)))
-    if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+    if trainer.is_world_process_zero():
         model.save_pretrained(model_path)
         tokenizer.save_pretrained(model_path)    
         logging.info("✅ PEFT 모델 저장 완료")
