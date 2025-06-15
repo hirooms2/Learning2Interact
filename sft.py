@@ -166,7 +166,7 @@ def main(args):
 
     training_args = TrainingArguments(
         deepspeed=args.deepspeed if args.deepspeed != '' else None,
-        # output_dir=model_path,
+        output_dir=model_path,
         num_train_epochs=args.epoch,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
