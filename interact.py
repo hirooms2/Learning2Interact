@@ -28,7 +28,7 @@ instruction_query = """You are an assistant engaging in a conversation with the 
 You should ask the user about her favorite genres, actors, directors, story elements, or overall impressions.
 Do not recommend or mention any items while asking."""
 
-instruction_gptcrs = """You are a recommender engaging in a conversation with the user to provide recommendations.
+instruction_gptcrs_prev = """You are a recommender engaging in a conversation with the user to provide recommendations.
 You must follow the instructions below during the chat:
 
 1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year). Each item should be listed without line breaks or spaces between them.
@@ -41,6 +41,19 @@ You must either recommend or ask about the user's preferences; you must not do b
 
 
 """
+
+instruction_gptcrs = """You are a recommender engaging in a conversation with the user to provide recommendations.
+You must follow the instructions below during the chat:
+
+1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year).
+
+2. If you do not have sufficient confidence in the user's preferences, you should ask the user about their preferences.
+
+You must either recommend or ask about the user's preferences; you must not do both simultaneously.
+
+
+"""
+
 
 
 year_pattern = re.compile(r'\(\d+\)')
@@ -309,10 +322,10 @@ def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, i
         topk_ids = rec_items[0][:args.topk]
         topk_names = [id2entity[item] for item in topk_ids]
         
-        if rec_success or t == args.turn_num - 1:
-            rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
-            rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
-            recommender_text = f"Here are some recommendations: {rec_items_str}"
+        # if rec_success or t == args.turn_num - 1:
+        #     rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
+        #     rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
+        #     recommender_text = f"Here are some recommendations: {rec_items_str}"
         conv_dict += [{"role": "assistant", "content": recommender_text}]
 
         seeker_prompt += f"Recommender: {recommender_text}\nSeeker: "
