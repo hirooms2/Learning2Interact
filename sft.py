@@ -190,9 +190,11 @@ def main(args):
     # LoRA adapter 저장     
 
     # if trainer.accelerator.is_main_process:
-    model.save_pretrained(model_path)
-    tokenizer.save_pretrained(model_path)    
-    logging.info("✅ PEFT 모델 저장 완료")
+    print(int(os.environ.get("LOCAL_RANK", 0)))
+    if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        model.save_pretrained(model_path)
+        tokenizer.save_pretrained(model_path)    
+        logging.info("✅ PEFT 모델 저장 완료")
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
     # merged_model = model.merge_and_unload()
