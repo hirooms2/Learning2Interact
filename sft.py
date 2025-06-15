@@ -199,8 +199,7 @@ def main(args):
         train_dataset=tokenized_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        callbacks=[QueryEvalCallback(model_path)]
-
+        # callbacks=[QueryEvalCallback(model_path)]
     )
 
     # 학습 시작
@@ -214,16 +213,16 @@ def main(args):
     # if trainer.accelerator.is_main_process:
     # print(int(os.environ.get("LOCAL_RANK", 0)))
     # if trainer.is_world_process_zero():
-    # local_rank = int(os.environ.get("LOCAL_RANK") or 0)
-    # print(f"[RANK {local_rank}] Saving model...", flush=True)
-    # if local_rank == 0:
-    #     print("➡ model.save_pretrained()", flush=True)
-    #     model.save_pretrained(model_path)
-    #     print("✅ model 저장됨", flush=True)
+    local_rank = int(os.environ.get("LOCAL_RANK") or 0)
+    print(f"[RANK {local_rank}] Saving model...", flush=True)
+    if local_rank == 0:
+        print("➡ model.save_pretrained()", flush=True)
+        model.save_pretrained(model_path)
+        print("✅ model 저장됨", flush=True)
 
-    #     print("➡ tokenizer.save_pretrained()", flush=True)
-    #     tokenizer.save_pretrained(model_path)
-    #     print("✅ tokenizer 저장됨", flush=True)
+        print("➡ tokenizer.save_pretrained()", flush=True)
+        tokenizer.save_pretrained(model_path)
+        print("✅ tokenizer 저장됨", flush=True)
 
 
     # # 모델 merge 및 저장 (LoRA → base weights에 합치기)
