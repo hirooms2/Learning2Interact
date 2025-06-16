@@ -32,7 +32,7 @@ instruction_gptcrs_prev = """You are a recommender engaging in a conversation wi
 You must follow the instructions below during the chat:
 
 1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year). Each item should be listed without line breaks or spaces between them.
-For example, follow this format when making recommendations: "Here are some recommendations: 1. Gone with the Wind (1939)2. Pride and Prejudice (1940)3. Wuthering Heights (1939)4. Rebecca (1940)5. The Remains of the Day (1993)6. A Room with a View (1985)7. The Age of Innocence (1993)8. The English Patient (1996)9. The Remains of the Day (1993)10. Atonement (2007)")
+For example, follow this format when making recommendations: "Here are some recommendations: 1. Gone with the Wind (1939)2. Pride and Prejudice (1940)3. Wuthering Heights (1939)4. Rebecca (1940)5. The Remains of the Day (1993)6. A Room with a View (1985)7. The Age of Innocence (1993)8. The English Patient (1996)9. The Remains of the Day (1993)10. Atonement (2007)"
 
 2. If you do not have sufficient confidence in the user's preferences, you should ask the user about their preferences.
 For example, you may ask: "You like horror movies. Can you be more specific? Do you prefer classic horror, supernatural horror, slasher movies, or something else?"
@@ -45,15 +45,16 @@ You must either recommend or ask about the user's preferences; you must not do b
 instruction_gptcrs = """You are a recommender engaging in a conversation with the user to provide recommendations.
 You must follow the instructions below during the chat:
 
-1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer without any explanations. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year).
+1. If you have sufficient confidence in the user's preferences, you should recommend 10 items the user is most likely to prefer. You should analyze the user's preferences as a brief rationale. The recommendation list can contain items that were already mentioned in the dialog. The format of the recommendation list is: no. title (year). Each item should be listed with line breaks.
+Strictly follow this format when making recommendations: "Based on your interest in action-comedy movies with young heroes and tech geniuses, here are some recommendations:\n1. Spider-Man: Homecoming (2017)\n2. Guardians of the Galaxy (2014)\n3. Kick-Ass (2010)\n4. Scott Pilgrim vs. the World (2010)\n5. The Incredibles (2004)\n6. Big Hero 6 (2014)\n7. Scott Pilgrim vs. the World (2010)\n8. Kick-Ass 2 (2013)\n9. The Incredibles 2 (2018)\n10. Spider-Man: Far From Home (2019)"
 
 2. If you do not have sufficient confidence in the user's preferences, you should ask the user about their preferences.
+You may ask: "You like horror movies. Can you be more specific? Do you prefer classic horror, supernatural horror, slasher movies, or something else?"
 
 You must either recommend or ask about the user's preferences; you must not do both simultaneously.
 
 
 """
-
 
 
 year_pattern = re.compile(r'\(\d+\)')
