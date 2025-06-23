@@ -195,7 +195,7 @@ def train(args):
                             # else:
                             #     reward = -1
                     else:
-                        reward = args.reward if rec_success else -args.reward
+                        reward = 1 if rec_success else -args.reward
                     
                     response_mask = torch.cat(role_masks, dim=0).to(dtype=torch.long)
 
