@@ -157,6 +157,7 @@ class PPOTrainer(BaseTrainer):
         num_shared_layers: Optional[int] = None,
         lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ):
+        print("Using custom ppo trainer")
         """
         Initialize PPOTrainer.
 

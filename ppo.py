@@ -4,7 +4,8 @@ import re
 import torch
 from math import ceil
 from tqdm import tqdm
-from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl import PPOConfig, AutoModelForCausalLMWithValueHead
+from ppo_trainer import PPOTrainer
 from parser import parse_args
 from chatgpt import ChatGPT
 import openai
