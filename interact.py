@@ -335,7 +335,6 @@ def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items
             conv_dict += [{"role": "assistant", "content": recommender_text}]
             break
         
-        
         full_prompt_query = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='query')
         query_texts = get_conv(args, model, tokenizer, full_prompt_query)
         query_text = query_texts[0]
