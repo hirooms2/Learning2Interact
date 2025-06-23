@@ -22,9 +22,10 @@ from random import shuffle
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
 from torch.utils.data import Dataset, DataLoader
 from chatgpt import ChatGPT
-from interact import run_explore, run_explore_gpt
+from interact import run_interaction
 import random
 
+random.seed(2025)
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -36,15 +37,18 @@ import random
 
 def main(args):
     openai.api_key = args.api_key
+    model_name = args.model_name
+    tokenizer = setup_tokenizer(model_name)
+    model = load_base_model(model_name)
 
+    model.resize_token_embeddings(len(tokenizer))
+    model.config.pad_token_id = tokenizer.pad_token_id
+    if args.model_path:
+        model = load_peft_model(model, args.model_path)
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     # log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}.txt')
-    dir_path = os.path.join(args.home, 'results', 'explore')
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-
-    log_file = os.path.join(dir_path, f'{mdhm}_{args.log_name}.txt')
-    json_path = os.path.join(dir_path, f'{mdhm}_{args.log_name}.json')
+    log_file = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.txt')
+    json_path = os.path.join(args.home, 'results', 'eval', f'{mdhm}_{args.log_name}.json')
     json_file = open(json_path, 'a', buffering=1, encoding='UTF-8')
     
     logging.basicConfig(
@@ -62,9 +66,9 @@ def main(args):
         world_size = torch.distributed.get_world_size()
 
     # Prepare dataset
-    data_path = os.path.join(args.home, 'data', args.train_data)
-    train_dataset = prepare_data(
-        data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True
+    data_path = os.path.join(args.home, 'data', args.test_data)
+    test_dataset = prepare_data(
+        data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=False
     )
 
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
@@ -74,14 +78,14 @@ def main(args):
     hit = 0
     avg_turn = 0
     all_samples = []
-    for i in tqdm(range(len(train_dataset))):
+    for i in tqdm(range(len(test_dataset))):
         dialog_id += 1
-        conv_dict = train_dataset[i]['dialog'].copy()
-        target_items = train_dataset[i]['target_items']
+        conv_dict = test_dataset[i]['dialog'].copy()
+        target_items = test_dataset[i]['target_items']
 
         # TH: is_train False로
-        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_explore_gpt(
-            args, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
+        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
+            args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})
@@ -140,7 +144,7 @@ def main(args):
         json_file.write(
             json.dumps(output, ensure_ascii=False) + "\n")
 
-    hit_ratio = hit / len(train_dataset)
+    hit_ratio = hit / len(test_dataset)
     avg_success_turn = avg_turn / hit if hit != 0 else 0
     logging.info(f"Hit_ratio: {hit_ratio:.3f}")
     logging.info(f"Avg_success_turn: {avg_success_turn:.3f}")
