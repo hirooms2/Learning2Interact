@@ -54,9 +54,9 @@ def load_base_model(model_name):
     return base_model
 
 
-def load_peft_model(model, model_path):
+def load_peft_model(model, model_path, is_trainable=True):
     if model_path != '':
-        peft_model = PeftModel.from_pretrained(model, model_path)
+        peft_model = PeftModel.from_pretrained(model, model_path, is_trainable=is_trainable)
     else:
         lora_config = LoraConfig(
             r=64,
@@ -67,6 +67,7 @@ def load_peft_model(model, model_path):
             task_type=TaskType.CAUSAL_LM,
         )
         peft_model = get_peft_model(model, lora_config)
+    peft_model.print_trainable_parameters()
 
     return peft_model
 

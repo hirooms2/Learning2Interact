@@ -93,7 +93,7 @@ def get_prompt_fewshot(tokenizer, context_list, interaction_list: list = [], add
     system_message = [{'role': 'system', 'content': instruction}]
     
     few_shot = []
-    for example in few_shot_blocks_new:
+    for example in few_shot_blocks:
         few_shot.extend(example)
 
     context = context_list
@@ -206,16 +206,60 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         # TH: 추천에 실패했다면, 그냥 가장 처음의 응답으로
         # if not rec_success:
         #     recommender_text = recommender_texts[0]
-        rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
 
         if (t == args.turn_num - 1 and last_turn_recommend) or (rec_success_recommend and rec_success):
+            rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
             recommender_text = f"Here are some recommendations: {rec_items_str}"
 
-        if is_train:
-            for target_item in target_items:
-                # target_name = year_pattern.sub('', target_item).strip()
-                if target_item in rec_items_str:
-                    rec_success = True
+        # if is_train:
+        #     for target_item in target_items:
+        #         # target_name = year_pattern.sub('', target_item).strip()
+        #         if target_item in recommender_text:
+        #             rec_success = True
+
+        if rec_success and args.rerank and is_train:
+            if 'here are some recommendations:' in recommender_text or 'here are some more recommendations:' in recommender_text:
+                if 'here are some recommendations:' in recommender_text:
+                    recommendation_ment = 'here are some recommendations:'
+                else:
+                    recommendation_ment = 'here are some more recommendations:'
+
+                recommendation_part = recommender_text.split(recommendation_ment)[-1]
+                index_position = []
+                for i in range(1, 11):
+                    index_position.append(recommendation_part.find(f"{i}. "))
+                index_position.append(len(recommendation_part))
+
+                items = []
+                for idx in range(len(index_position) - 1):
+                    start = index_position[idx]
+                    end = index_position[idx + 1]
+                    item = recommendation_part[start:end]
+                    items.append(item[len(f'{idx+1}. '):].strip())
+
+                # items = recommendation_part.strip().split("\n")
+                parsed_items = [item.strip() for item in items if item.strip()]
+
+                # pattern = r'^(\d+)\.\s(.+)$'
+
+                # parsed = [
+                #     m[2] for item in parsed_items if (m := re.match(pattern, item))
+                # ]
+
+                sorted = target_items + [i for i in parsed_items if i not in target_items]
+                final_recommendation_list = []
+                for i in sorted:
+                    if i not in final_recommendation_list:
+                        final_recommendation_list.append(i)
+
+                final_recommendation_list = final_recommendation_list[:10]
+                if len(final_recommendation_list) < 10:
+                    emb_rec_list = [id2entity[i] for i in rec_items[0] if id2entity[i] not in final_recommendation_list]
+                    final_recommendation_list = final_recommendation_list + emb_rec_list
+                    final_recommendation_list = final_recommendation_list[:10]
+
+                sorted_str = ' '.join([f"{i+1}. {item}" for i, item in enumerate(final_recommendation_list[:10])])
+                recommender_text = recommender_text.split(recommendation_ment)[0] + 'here are some recommendations: ' + sorted_str
 
         seeker_prompt += f"Recommender: {recommender_text}\nSeeker:"
         seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()

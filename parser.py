@@ -35,7 +35,8 @@ def parse_args():
     parser.add_argument('--prevent_leakage', action='store_true')
     parser.add_argument('--hardcore', action='store_true')
     parser.add_argument('--rec_success_recommend', action='store_true')
-    
+    parser.add_argument('--rerank', action='store_true')
+
     # Parameter
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--eval_batch_size', type=int, default=4)

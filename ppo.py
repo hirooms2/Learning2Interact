@@ -31,15 +31,26 @@ from interact import get_prompt, run_interaction
 # LOG_WITH = 'None'
 
 
-def create_ppo_trainer(args, peft_model, tokenizer):
+def create_ppo_trainer(args):
+
+    tokenizer = setup_tokenizer(args.model_name)
+    base_model = load_base_model(args.model_name)
+    base_model.resize_token_embeddings(len(tokenizer))
+    base_model.config.pad_token_id = tokenizer.pad_token_id
+    peft_model = load_peft_model(base_model, args.model_path)
 
     model = AutoModelForCausalLMWithValueHead(peft_model)
     model.is_peft_model = True
-    
+    # model.print_trainable_parameters()
+
     # REF
     if args.ref_model:
-        ref_model = peft_model.base_model.model  # PEFT 이전 base
+        ref_model = load_base_model(args.model_name)
+        ref_model.resize_token_embeddings(len(tokenizer))
+        ref_model.config.pad_token_id = tokenizer.pad_token_id
+        ref_model = load_peft_model(ref_model, args.model_path, is_trainable=False) # .base_model.model  # PEFT 이전 base
         ref_model = AutoModelForCausalLMWithValueHead(ref_model)
+        # ref_model = AutoModelForCausalLMWithValueHead(ref_model)
         ref_model.is_peft_model = False
         ref_model.eval()
     else:
@@ -72,7 +83,7 @@ def create_ppo_trainer(args, peft_model, tokenizer):
     )
     ppo_trainer = PPOTrainer(config=ppo_config, model=model, ref_model=ref_model, tokenizer=tokenizer)
     # ppo_trainer = PPOTrainer(config=ppo_config, model=model, tokenizer=tokenizer, optimizer=optimizer, lr_scheduler=lr_scheduler)
-    return ppo_trainer
+    return ppo_trainer, model, tokenizer
 
 
 def setup_logger(log_file_path):
@@ -94,13 +105,8 @@ def setup_logger(log_file_path):
 
 def train(args):
     openai.api_key = args.api_key
-    tokenizer = setup_tokenizer(args.model_name)
-    base_model = load_base_model(args.model_name)
-    model = load_peft_model(base_model, args.model_path)
-    model.resize_token_embeddings(len(tokenizer))
-    model.config.pad_token_id = tokenizer.pad_token_id
 
-    ppo_trainer = create_ppo_trainer(args, model, tokenizer)
+    ppo_trainer, model, tokenizer = create_ppo_trainer(args)
     rank, world_size = ppo_trainer.accelerator.process_index, ppo_trainer.accelerator.num_processes
 
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
@@ -111,6 +117,13 @@ def train(args):
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
     log_name = args.log_name
     train_data = prepare_data(data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True)
+
+
+    # 학습 전에 특정 weight 저장
+    params_before = {}
+    for name, param in model.named_parameters():
+        if "lora_" in name and param.requires_grad:
+            params_before[name] = param.detach().clone()
 
     for epoch in range(args.epoch):
 
@@ -242,30 +255,45 @@ def train(args):
             torch.cuda.empty_cache()
             prompts, responses, rewards, response_masks = [], [], [], []
 
+            # 학습 한두 step 후, 다시 확인
+            params_after = {}
+            for name, param in model.named_parameters():
+                if "lora_" in name and param.requires_grad:
+                    params_after[name] = param.detach().clone()
+
+            # 차이 확인
+            diff_list = []
+            for name in params_before:
+                diff = (params_after[name] - params_before[name]).abs().mean()
+                # print(f"{name} changed by {diff:.6e}")
+                diff_list.append(diff)
+            print(sum(diff_list))
+            params_before = params_after
+
         if ppo_trainer.accelerator.is_main_process:
             model_path = os.path.join(args.home, 'model_weights', f"ppo_model_{mdhm}_{log_name}_E{epoch+1}")
             ppo_trainer.save_pretrained(model_path)
             logging.info("✅ 모델 저장 완료")
 
-            if args.ref_model:
-                # === ref_model 갱신 ===
-                # base_model은 이미 위에서 load_base_model()로 불러온 상태
-                # peft_model = PeftModel.from_pretrained(base_model, model_path)  # ⬅ 저장된 LoRA adapter 로드
-                peft_model = load_peft_model(base_model, model_path)
+            # if args.ref_model:
+            #     # === ref_model 갱신 ===
+            #     # base_model은 이미 위에서 load_base_model()로 불러온 상태
+            #     # peft_model = PeftModel.from_pretrained(base_model, model_path)  # ⬅ 저장된 LoRA adapter 로드
+            #     peft_model = load_peft_model(base_model, model_path)
 
-                merged_model = peft_model.merge_and_unload()                    # ⬅ adapter 병합
-                ref_model = AutoModelForCausalLMWithValueHead(merged_model)    # ⬅ value head 추가
-                ref_model.is_peft_model = False
-                ref_model.eval()
+            #     merged_model = peft_model.merge_and_unload()                    # ⬅ adapter 병합
+            #     ref_model = AutoModelForCausalLMWithValueHead(merged_model)    # ⬅ value head 추가
+            #     ref_model.is_peft_model = False
+            #     ref_model.eval()
 
-                ppo_trainer.ref_model = ref_model
+            #     ppo_trainer.ref_model = ref_model
 
-                # # === ref_model 갱신 ===
-                # merged_model = ppo_trainer.model.merge_and_unload()
-                # ref_model = AutoModelForCausalLMWithValueHead(merged_model)
-                # ref_model.is_peft_model = False
-                # ref_model.eval()
-                # ppo_trainer.ref_model = ref_model
+            #     # # === ref_model 갱신 ===
+            #     # merged_model = ppo_trainer.model.merge_and_unload()
+            #     # ref_model = AutoModelForCausalLMWithValueHead(merged_model)
+            #     # ref_model.is_peft_model = False
+            #     # ref_model.eval()
+            #     # ppo_trainer.ref_model = ref_model
 
 if __name__ == '__main__':
     args = parse_args()
