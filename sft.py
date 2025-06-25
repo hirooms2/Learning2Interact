@@ -20,6 +20,7 @@ import logging
 import sys
 from random import shuffle
 from interact import instruction
+from utils import load_peft_model
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -118,7 +119,9 @@ def main(args):
     base_model = load_base_model(args.model_name)
     base_model.resize_token_embeddings(len(tokenizer))
     base_model.config.pad_token_id = tokenizer.pad_token_id
-    
+    model = load_peft_model(base_model, args.model_path)
+    # model = get_peft_model(base_model, lora_config)
+
     # wandb.init(
     #     project="learning2interact",  # 원하는 wandb 프로젝트 이름
     #     name=args.log_name,           # 실험 run 이름
@@ -134,7 +137,6 @@ def main(args):
         task_type=TaskType.CAUSAL_LM,
     )
 
-    model = get_peft_model(base_model, lora_config)
 
     rank, world_size = 0, 1
     if torch.distributed.is_available() and torch.distributed.is_initialized():

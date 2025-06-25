@@ -63,7 +63,7 @@ def create_ppo_trainer(args):
         learning_rate=args.learning_rate,
         gamma=args.gamma,
         lam=args.lam,
-        kl_penalty="kl",
+        kl_penalty="abs",
         init_kl_coef=args.init_kl_coef,
         target_kl=args.target_kl,
         adap_kl_ctrl=args.adap_kl_ctrl,
@@ -232,7 +232,11 @@ def train(args):
                 dialog_id += 1
 
             ppo_trainer.config.batch_size = len(prompts)
-            stats = ppo_trainer.step(prompts, responses, rewards, response_masks)
+
+            if args.no_mask:
+                stats = ppo_trainer.step(prompts, responses, rewards)
+            else:
+                stats = ppo_trainer.step(prompts, responses, rewards, response_masks)
             # stats = ppo_trainer.step(prompts, responses, rewards)
 
             current_lr = ppo_trainer.optimizer.param_groups[0]['lr']
@@ -246,6 +250,7 @@ def train(args):
                 f"KL: {stats['objective/kl']:.6f} | "
                 f"Entropy: {stats['objective/entropy']:.2f} | "
                 f"Mean Reward: {stats['ppo/mean_scores']:.4f} | "
+                f"Mean Non Score Reward: {stats['ppo/mean_non_score_reward']:.4f} | "
                 f"Adv. Mean: {stats['ppo/policy/advantages_mean']:.4f} | "
                 f"LR: {current_lr:.6e} | "
                 f"KL Coef: {current_kl_coef:.6f} | "

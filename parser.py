@@ -56,6 +56,7 @@ def parse_args():
     parser.add_argument('--target_kl', type=int, default=1)
     parser.add_argument('--ref_model', action='store_true')
     parser.add_argument('--diff_aware', action='store_true')
+    parser.add_argument('--no_mask', action='store_true')
 
     # SFT
     parser.add_argument('--train_only_interaction', action='store_true')

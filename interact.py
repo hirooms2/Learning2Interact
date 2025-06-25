@@ -193,8 +193,8 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
             rec_items = chatgpt.get_rec(conv_dict, recommender_text)
             ## 수정 by BS
             rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
-            rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
-            
+            rec_list = [id2entity[rec_label] for rec_label in rec_labels if rec_label in rec_items[0][:args.topk] ]
+
             rec_ids = rec_labels
             rec_names = target_items
             topk_ids = rec_items[0][:args.topk]
@@ -246,7 +246,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
                 #     m[2] for item in parsed_items if (m := re.match(pattern, item))
                 # ]
 
-                sorted = target_items + [i for i in parsed_items if i not in target_items]
+                sorted = rec_list + [i for i in parsed_items if i not in rec_list]
                 final_recommendation_list = []
                 for i in sorted:
                     if i not in final_recommendation_list:
