@@ -34,7 +34,7 @@ from mytrl.ppo_trainer import PPOTrainer
 class GRPOConfig(PPOConfig):
     """Keeps all PPOConfig fields but adds one: `beta` for KL weight."""
 
-    def __init__(self, *args, beta: float = 0.0, loss_type: str = 'grpo', **kwargs):
+    def __init__(self, *args, beta: float = 0.0, loss_type: str = 'grpo', e_high : float = 0.2, e_low : float = 0.2, **kwargs):
         super().__init__(*args, **kwargs)
         self.beta = beta  # KL coefficient
         # sensible GRPO defaults
@@ -44,6 +44,8 @@ class GRPOConfig(PPOConfig):
         if self.loss_type == 'dr_grpo':
             self.scale_rewards = False
         self.max_completion_length = 256
+        self.e_high = e_high
+        self.e_low = e_low
 
 
 class GRPOTrainer(PPOTrainer):
@@ -115,7 +117,7 @@ class GRPOTrainer(PPOTrainer):
         ratio = torch.exp(logprobs - old_logprobs)
         pg_losses1 = -advantages * ratio
         pg_losses2 = -advantages * torch.clamp(
-            ratio, 1.0 - self.config.cliprange, 1.0 + self.config.cliprange
+            ratio, 1.0 - self.e_low, 1.0 + self.e_high
         )
 
         if getattr(self.config, "loss_type", "grpo") == "dr_grpo":

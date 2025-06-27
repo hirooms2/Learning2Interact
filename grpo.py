@@ -218,21 +218,26 @@ def train(args):
                 # Print roll-out dialog
                 print_dialog(i_dialog, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
 
+            i += 1
+            i_dialog += 1
+
             # ---- reward normalisation (GRPO) ---------------------------------
             raw_r = torch.tensor([r for *_, r in record_buf], dtype=torch.float32)
             mu    = raw_r.mean()
             sigma = raw_r.std() if args.scale_rewards else 1.0
             norm_r = (raw_r - mu) / (sigma + 1e-6)
 
-            # ---- push to trainer buffers -------------------------------------
-            for (prompt, response, mask_t, _), r in zip(record_buf, norm_r):
-                prompts.append(tokenizer(prompt, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
-                responses.append(tokenizer(response, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
-                rewards.append(r.unsqueeze(0))
-                masks.append(mask_t)
-
-            i += 1
-            i_dialog += 1
+            # discard samples that have equal rewards
+            if (mu == 1 or mu == -args.reward) and args.dynamic_sampling:
+                print("Drop the samples")
+                continue
+            else:
+                # ---- push to trainer buffers -------------------------------------
+                for (prompt, response, mask_t, _), r in zip(record_buf, norm_r):
+                    prompts.append(tokenizer(prompt, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
+                    responses.append(tokenizer(response, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
+                    rewards.append(r.unsqueeze(0))
+                    masks.append(mask_t)
 
             # reach batch
             if len(prompts) >= args.batch_size or i == len(train_data):
@@ -247,11 +252,11 @@ def train(args):
                 step_num+=1
                 torch.cuda.empty_cache()
 
-        # ---- epoch end: save -------------------------------------------------
-        if trainer.accelerator.is_main_process:
-            out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}")
-            trainer.save_pretrained(out_dir)
-            logging.info(f"✅ saved to {out_dir}")
+            # ---- epoch end: save -------------------------------------------------
+            if trainer.accelerator.is_main_process and i % 1000 == 0:
+                out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{i}")
+                trainer.save_pretrained(out_dir)
+                logging.info(f"✅ saved to {out_dir}")
 
     # final stats
     if trainer.accelerator.is_main_process:

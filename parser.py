@@ -61,6 +61,9 @@ def parse_args():
     # GRPO tuning
     parser.add_argument('--scale_rewards', action='store_true')
     parser.add_argument('--loss_type', type=str, default='grpo', choices=['grpo', 'dr_grpo'])
+    parser.add_argument('--e_high', type=float, default=0.2)
+    parser.add_argument('--e_low', type=float, default=0.2)
+    parser.add_argument('--dynamic_sampling', action='store_true')
 
     # SFT
     parser.add_argument('--train_only_interaction', action='store_true')
