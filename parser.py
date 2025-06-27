@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--do_sample', action='store_true')
     parser.add_argument('--temperature', type=float, default=1.0)
-    parser.add_argument('--top_p', type=float, default=0.9)
+    parser.add_argument('--top_p', type=float, default=1.0)
     parser.add_argument('--top_k', type=int, default=50)
 
     # Dataset
@@ -46,9 +46,9 @@ def parse_args():
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1)
     
     # PPO tuning
-    parser.add_argument('--ppo_epoch', type=int, default=4)
-    parser.add_argument('--num_explore', type=int, default=1)
-    parser.add_argument('--init_kl_coef', type=float, default=0.2)
+    parser.add_argument('--ppo_epoch', type=int, default=1)
+    parser.add_argument('--num_generations', type=int, default=8)
+    parser.add_argument('--init_kl_coef', type=float, default=0.0)
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--lam', type=float, default=0.95)
     parser.add_argument('--reward', type=float, default=1.0)
@@ -57,6 +57,10 @@ def parse_args():
     parser.add_argument('--ref_model', action='store_true')
     parser.add_argument('--diff_aware', action='store_true')
     parser.add_argument('--no_mask', action='store_true')
+
+    # GRPO tuning
+    parser.add_argument('--scale_rewards', action='store_true')
+    parser.add_argument('--loss_type', type=str, default='grpo', choices=['grpo', 'dr_grpo'])
 
     # SFT
     parser.add_argument('--train_only_interaction', action='store_true')

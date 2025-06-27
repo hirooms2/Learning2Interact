@@ -63,13 +63,13 @@ def create_ppo_trainer(args):
         learning_rate=args.learning_rate,
         gamma=args.gamma,
         lam=args.lam,
-        kl_penalty="kl",
+        kl_penalty="full",
         init_kl_coef=args.init_kl_coef,
         target_kl=args.target_kl,
         adap_kl_ctrl=args.adap_kl_ctrl,
         batch_size=args.batch_size,
         # gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mini_batch_size=1
+        mini_batch_size=2
     )
     
     # Optimizer (optional: TRL creates one automatically if omitted)

@@ -774,6 +774,7 @@ class PPOTrainer(BaseTrainer):
             "masks": masks,
             "advantages": advantages,
             "returns": returns,
+            "ref_logprobs": ref_logprobs,
         }
         batch_dict.update(model_inputs)
 
@@ -802,6 +803,7 @@ class PPOTrainer(BaseTrainer):
                         "responses": [batch_dict["responses"][i] for i in mini_batch_inds],
                         "advantages": batch_dict["advantages"][mini_batch_inds],
                         "returns": batch_dict["returns"][mini_batch_inds],
+                        "ref_logprobs": batch_dict["ref_logprobs"][mini_batch_inds],
                     }
                     for k in model_inputs_names:
                         mini_batch_dict[k] = batch_dict[k][mini_batch_inds]
@@ -824,6 +826,7 @@ class PPOTrainer(BaseTrainer):
                             mini_batch_dict["masks"],
                             mini_batch_dict["advantages"],
                             mini_batch_dict["returns"],
+                            mini_batch_dict['ref_logprobs'],
                         )
                         all_stats.append(train_stats)
 
@@ -1064,6 +1067,7 @@ class PPOTrainer(BaseTrainer):
         mask: torch.LongTensor,
         advantages: torch.FloatTensor,
         returns: torch.FloatTensor,
+        ref_logprobs: torch.FloatTensor
     ):
         """
         Train one PPO minibatch
@@ -1086,7 +1090,7 @@ class PPOTrainer(BaseTrainer):
         """
         self.model.train()
         loss_p, loss_v, train_stats = self.loss(
-            old_logprobs, values, logits, vpreds, logprobs, mask, advantages, returns
+            old_logprobs, values, logits, vpreds, logprobs, mask, advantages, returns, ref_logprobs
         )
         loss = loss_p + loss_v
         self.accelerator.backward(loss)
@@ -1191,6 +1195,7 @@ class PPOTrainer(BaseTrainer):
         mask: torch.LongTensor,
         advantages: torch.FloatTensor,
         returns: torch.FloatTensor,
+        ref_logprobs: torch.FloatTensor = None,
     ):
         """
         Calculate policy and value losses.

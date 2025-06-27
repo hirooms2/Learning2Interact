@@ -5,7 +5,7 @@ import torch
 from math import ceil
 from tqdm import tqdm
 from trl import PPOConfig, AutoModelForCausalLMWithValueHead
-from ppo_trainer import PPOTrainer
+from mytrl.ppo_trainer import PPOTrainer
 from parser import parse_args
 from chatgpt import ChatGPT
 import openai
@@ -63,7 +63,7 @@ def create_ppo_trainer(args):
         learning_rate=args.learning_rate,
         gamma=args.gamma,
         lam=args.lam,
-        kl_penalty="abs",
+        kl_penalty="kl",
         init_kl_coef=args.init_kl_coef,
         target_kl=args.target_kl,
         adap_kl_ctrl=args.adap_kl_ctrl,
@@ -146,7 +146,7 @@ def train(args):
                 target_items = train_data[i]['target_items']
                 base_turn = train_data[i]['base_turn']
 
-                for _ in range(args.num_explore):
+                for _ in range(args.num_generations):
                     conv_dict, rec_success, original_conv_len, _, _, _, _ = run_interaction(
                         args, ppo_trainer.model, tokenizer, chatgpt, default_conv_dict, target_items, 
                         entity2id, id2entity, last_turn_recommend=args.last_turn_recommend, rec_success_recommend=args.rec_success_recommend, is_train=True
