@@ -117,7 +117,7 @@ class GRPOTrainer(PPOTrainer):
         ratio = torch.exp(logprobs - old_logprobs)
         pg_losses1 = -advantages * ratio
         pg_losses2 = -advantages * torch.clamp(
-            ratio, 1.0 - self.e_low, 1.0 + self.e_high
+            ratio, 1.0 - self.config.e_low, 1.0 + self.config.e_high
         )
 
         if getattr(self.config, "loss_type", "grpo") == "dr_grpo":
