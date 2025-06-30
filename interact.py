@@ -211,11 +211,11 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
             rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
             recommender_text = f"Here are some recommendations: {rec_items_str}"
 
-        if is_train:
-            for target_item in target_items:
-                # target_name = year_pattern.sub('', target_item).strip()
-                if f"accept {target_item}" in recommender_text:
-                    rec_success = True
+        # if is_train:
+        #     for target_item in target_items:
+        #         # target_name = year_pattern.sub('', target_item).strip()
+        #         if f"accept {target_item}" in recommender_text:
+        #             rec_success = True
 
         if rec_success and args.rerank and is_train:
             if 'here are some recommendations:' in recommender_text or 'here are some more recommendations:' in recommender_text:
