@@ -212,7 +212,7 @@ def train(args):
                     if interaction_num < args.turn_num:
                         raw_reward += args.bonus
                 else:
-                    if interaction_num < args.sample['base_turn']:
+                    if interaction_num < sample['base_turn']:
                         raw_reward += args.bonus
 
                 record_buf.append((prompt, response, role_mask, raw_reward))
