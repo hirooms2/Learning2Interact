@@ -188,8 +188,7 @@ def train(args):
         setup_logger(log_file)
 
         prompts, responses, rewards, masks = [], [], [], []
-        i_dialog = args.start
-        i = 0
+        i = args.resume_start
         step_num = 1
         while i < len(train_data):
             # ───────────────────────────────── group (one dialog) ──────────────
@@ -216,10 +215,9 @@ def train(args):
                     success_turn_sum += (len(conv_dict) - orig_len) // 2
 
                 # Print roll-out dialog
-                print_dialog(i_dialog, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
+                print_dialog(i, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
 
             i += 1
-            i_dialog += 1
 
             # ---- reward normalisation (GRPO) ---------------------------------
             raw_r = torch.tensor([r for *_, r in record_buf], dtype=torch.float32)
@@ -252,8 +250,8 @@ def train(args):
                 step_num+=1
                 torch.cuda.empty_cache()
 
-            # ---- epoch end: save -------------------------------------------------
-            if trainer.accelerator.is_main_process and i % 1000 == 0:
+            # ---- save -------------------------------------------------
+            if trainer.accelerator.is_main_process and (i % 1000 == 0 or i == len(train_data)):
                 out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{i}")
                 trainer.save_pretrained(out_dir)
                 logging.info(f"✅ saved to {out_dir}")

@@ -57,6 +57,7 @@ def parse_args():
     parser.add_argument('--ref_model', action='store_true')
     parser.add_argument('--diff_aware', action='store_true')
     parser.add_argument('--no_mask', action='store_true')
+    parser.add_argument('--resume_start', type=int, default=0)
 
     # GRPO tuning
     parser.add_argument('--scale_rewards', action='store_true')
