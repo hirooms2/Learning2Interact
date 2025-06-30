@@ -52,6 +52,7 @@ def parse_args():
     parser.add_argument('--gamma', type=float, default=1.0)
     parser.add_argument('--lam', type=float, default=0.95)
     parser.add_argument('--reward', type=float, default=1.0)
+    parser.add_argument('--bonus', type=float, default=0.0)
     parser.add_argument('--adap_kl_ctrl', action='store_true')
     parser.add_argument('--target_kl', type=int, default=1)
     parser.add_argument('--ref_model', action='store_true')

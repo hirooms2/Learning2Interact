@@ -188,7 +188,7 @@ def train(args):
         setup_logger(log_file)
 
         prompts, responses, rewards, masks = [], [], [], []
-        i = args.resume_start
+        i = args.resume_start if args.resume_start != 0 and epoch == 0 else 0
         step_num = 1
         while i < len(train_data):
             # ───────────────────────────────── group (one dialog) ──────────────
@@ -206,13 +206,22 @@ def train(args):
                 prompt  = get_prompt(tokenizer, conv_dict[:orig_len], few_shot=args.few_shot)
                 response, role_mask = build_response_and_mask(tokenizer, conv_dict, orig_len, few_shot=args.few_shot)
                 raw_reward = 1.0 if rec_success else -args.reward
+                
+                interaction_num = (len(conv_dict) - orig_len) // 2
+                if sample['base_turn'] > 3:
+                    if interaction_num < args.turn_num:
+                        raw_reward += args.bonus
+                else:
+                    if interaction_num < args.sample['base_turn']:
+                        raw_reward += args.bonus
+
                 record_buf.append((prompt, response, role_mask, raw_reward))
 
                 # stats
                 seen += 1
                 if rec_success:
                     hit += 1
-                    success_turn_sum += (len(conv_dict) - orig_len) // 2
+                    success_turn_sum += interaction_num
 
                 # Print roll-out dialog
                 print_dialog(i, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
