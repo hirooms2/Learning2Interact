@@ -56,6 +56,7 @@ def parse_args():
     parser.add_argument('--adap_kl_ctrl', action='store_true')
     parser.add_argument('--target_kl', type=int, default=1)
     parser.add_argument('--ref_model', action='store_true')
+    parser.add_argument('--ref_path', type=str, default='')
     parser.add_argument('--diff_aware', action='store_true')
     parser.add_argument('--no_mask', action='store_true')
     parser.add_argument('--resume_start', type=int, default=0)

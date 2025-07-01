@@ -81,10 +81,13 @@ def create_grpo_trainer(args):
     # ---- reference model (optional) ----------------------------------------
     ref_model = None
     if args.ref_model:
+        
+        ref_path = os.path.join(args.home, 'model_weights', args.ref_path) if args.ref_path else args.model_path
+
         ref_base = load_base_model(args.model_name)
         ref_base.resize_token_embeddings(len(tokenizer))
         ref_base.config.pad_token_id = tokenizer.pad_token_id
-        ref_base  = load_peft_model(ref_base, args.model_path, is_trainable=False)
+        ref_base  = load_peft_model(ref_base, ref_path, is_trainable=False)
         ref_model = AutoModelForCausalLMWithValueHead(ref_base)
         ref_model.is_peft_model = False
         ref_model.eval()
@@ -234,8 +237,8 @@ def train(args):
             sigma = raw_r.std() if args.scale_rewards else 1.0
             norm_r = (raw_r - mu) / (sigma + 1e-6)
 
-            # discard samples that have equal rewards
-            if (mu == 1 or mu == -args.reward) and args.dynamic_sampling:
+            # discard samples that have equal rewards: torch.isclose(raw_r.std(), torch.tensor(0.0))
+            if torch.isclose(raw_r.std(), torch.tensor(0.0)) and args.dynamic_sampling:
                 print("Drop the samples")
                 continue
             else:
