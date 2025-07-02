@@ -107,6 +107,7 @@ def create_grpo_trainer(args):
         target_kl       = args.target_kl,
         batch_size      = args.batch_size,
         loss_type       = args.loss_type,
+        adap_kl_ctrl    = args.adap_kl_ctrl,
         mini_batch_size = 1,
     )
 
@@ -263,7 +264,7 @@ def train(args):
                 torch.cuda.empty_cache()
 
             # ---- save -------------------------------------------------
-            if trainer.accelerator.is_main_process and (i % 1000 == 0 or i == len(train_data)):
+            if trainer.accelerator.is_main_process and (i % 500 == 0 or i == len(train_data)):
                 out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{i}")
                 trainer.save_pretrained(out_dir)
                 logging.info(f"✅ saved to {out_dir}")
