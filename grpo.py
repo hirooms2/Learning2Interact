@@ -42,7 +42,7 @@ from mytrl.grpo_trainer import GRPOTrainer, GRPOConfig          # ← our fork
 
 # local helpers -------------------------------------------------------------
 from utils     import setup_tokenizer, load_base_model, load_peft_model, prepare_data
-from interact  import get_prompt, run_interaction
+from interact  import get_prompt, run_interaction, instruction
 from chatgpt   import ChatGPT
 from parser    import parse_args
 
@@ -192,12 +192,30 @@ def train(args):
         setup_logger(log_file)
 
         prompts, responses, rewards, masks = [], [], [], []
+        # sft_prompts, sft_responses = [], []
+        # sft_max_len = 0
+
         i = args.resume_start if args.resume_start != 0 and epoch == 0 else 0
         step_num = 1
         while i < len(train_data):
             # ───────────────────────────────── group (one dialog) ──────────────
             record_buf: List[Tuple[str,str,Tensor,float]] = []
             sample = train_data[i]
+
+            # ───────────────────────────────── Data prepare for SFT ──────────────
+            # sft_dialog = sample['dialog'][-5:]
+            # sft_dialog.insert(0, {'role': 'system', 'content': instruction})
+            # sft_interaction = sample['interaction'][:-1]
+            # sft_context = sft_dialog + sft_interaction
+            # original_context_len = len(tokenizer.apply_chat_template(sft_dialog, tokenize=True, add_generation_prompt=True))
+            # sft_prompt = tokenizer.apply_chat_template(sft_context, tokenize=False, add_generation_prompt=False)
+            # tokenized_prompt = tokenizer(sft_prompt, truncation=True, add_special_tokens=False)
+            # sft_input_ids = tokenized_prompt.input_ids
+            # sft_labels = sft_input_ids.copy()
+            # sft_labels = [token if idx >= original_context_len else -100 for idx, token in enumerate(sft_input_ids)]
+            # sft_max_len = max(sft_max_len, len(sft_input_ids))
+            target_turn_num = args.turn_num-args.turn_num_offset
+
             for g_idx in range(args.num_generations):
                 conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
                     args, trainer.model, tokenizer, chatgpt,
@@ -207,11 +225,14 @@ def train(args):
                     rec_success_recommend=args.rec_success_recommend,
                     is_train=True,
                 )
+                interaction_num = (len(conv_dict) - orig_len) // 2
+                if interaction_num > target_turn_num:
+                    conv_dict = conv_dict[:-2 * (interaction_num-target_turn_num)]
+
                 prompt  = get_prompt(tokenizer, conv_dict[:orig_len], few_shot=args.few_shot)
                 response, role_mask = build_response_and_mask(tokenizer, conv_dict, orig_len, few_shot=args.few_shot)
-                interaction_num = (len(conv_dict) - orig_len) // 2
 
-                raw_reward = 1.0 if rec_success and interaction_num <= (args.turn_num-args.turn_num_offset) else -args.reward
+                raw_reward = 1.0 if rec_success and interaction_num <= target_turn_num else -args.reward
 
                 if sample['base_turn'] > 3:
                     if interaction_num < args.turn_num:
@@ -250,17 +271,31 @@ def train(args):
                     responses.append(tokenizer(response, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
                     rewards.append(r.unsqueeze(0))
                     masks.append(mask_t)
+                # sft_prompts.append(sft_input_ids)
+                # sft_responses.append(sft_labels)
 
             # reach batch
             if len(prompts) >= args.batch_size or i == len(train_data):
                 trainer.config.batch_size = len(prompts)
-                stats = trainer.step(prompts, responses, rewards, masks)
+                
+                # ----SFT tokenizing -----------------------------------------
+                # sft_prompts = [[tokenizer.pad_token_id] * (sft_max_len-len(i)) + i  if len(i) < sft_max_len else i for i in sft_prompts]
+                # sft_responses = [[-100] * (sft_max_len-len(i)) + i  if len(i) < 808 else i for i in sft_responses]
+                # sft_prompts = torch.LongTensor(sft_prompts)
+                # sft_masks = (sft_prompts != tokenizer.pad_token_id).long() 
+                # sft_responses = torch.LongTensor(sft_responses)
+                
+                stats = trainer.step(prompts, responses, rewards, masks) #, sft_prompts, sft_masks, sft_responses)
 
                 # ---- simple logging ---------------------------------------
                 logging.info(
                     f"Step: {step_num} | loss: {stats['ppo/loss/policy']:.4f} | "
                     f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f}" )
                 prompts, responses, rewards, masks = [], [], [], []
+                
+                # sft_prompts, sft_responses = [], []
+                # sft_max_len = 0
+
                 step_num+=1
                 torch.cuda.empty_cache()
 
