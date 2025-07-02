@@ -209,9 +209,10 @@ def train(args):
                 )
                 prompt  = get_prompt(tokenizer, conv_dict[:orig_len], few_shot=args.few_shot)
                 response, role_mask = build_response_and_mask(tokenizer, conv_dict, orig_len, few_shot=args.few_shot)
-                raw_reward = 1.0 if rec_success else -args.reward
-                
                 interaction_num = (len(conv_dict) - orig_len) // 2
+
+                raw_reward = 1.0 if rec_success and interaction_num <= (args.turn_num-args.turn_num_offset) else -args.reward
+
                 if sample['base_turn'] > 3:
                     if interaction_num < args.turn_num:
                         raw_reward += args.bonus

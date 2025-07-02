@@ -26,6 +26,7 @@ def parse_args():
 
     # Interaction Setting
     parser.add_argument('--turn_num', type=int, default=5)
+    parser.add_argument('--turn_num_offset', type=int, default=0)
     parser.add_argument('--topk', type=int, default=10)
     parser.add_argument('--last_turn_recommend', action='store_true')
     parser.add_argument('--evaluate', action='store_true')
