@@ -218,12 +218,12 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
                     if target_item not in rec_list:
                         rec_list.append(target_item)
                     rec_success = True
-            # Format check
-            for ranking_idx in range(1, 11):
-                if f"{ranking_idx}. " not in recommender_text:
-                    rec_success = False
-            if '11. ' in recommender_text:
-                rec_success = False
+            # # Format check
+            # for ranking_idx in range(1, 11):
+            #     if f"{ranking_idx}. " not in recommender_text:
+            #         rec_success = False
+            # if '11. ' in recommender_text:
+            #     rec_success = False
 
         if rec_success and args.rerank and is_train:
             if 'here are some recommendations:' in recommender_text or 'here are some more recommendations:' in recommender_text:

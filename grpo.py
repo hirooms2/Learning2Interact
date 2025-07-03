@@ -139,6 +139,26 @@ def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: b
     return response_text, torch.cat(role_masks, dim=0)
 
 # ---------------------------------------------------------------------------
+# Format check
+# ---------------------------------------------------------------------------
+
+def format_check(conv_dict):
+    format_validity = True
+    for utt in conv_dict:
+        if utt['role'] == 'user':
+            continue
+        if 'recommendations:' not in utt['content']:
+            continue
+        for ranking_idx in range(1, 11):
+            if f"{ranking_idx}. " not in utt['content']:
+                format_validity = False
+                break
+        if '11. ' in format_validity:
+            format_validity = False
+            break
+    return format_validity
+
+# ---------------------------------------------------------------------------
 # Print roll-out dialog
 # ---------------------------------------------------------------------------
 
@@ -212,7 +232,7 @@ def train(args):
 
             target_turn_num = args.turn_num - args.turn_num_offset
 
-            for g_idx in range(args.num_generations):
+            while len(record_buf) < args.num_generations:
                 conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
                     args, trainer.model, tokenizer, chatgpt,
                     sample['dialog'].copy(), sample['target_items'],
@@ -237,7 +257,11 @@ def train(args):
                     if interaction_num < sample['base_turn']:
                         raw_reward += args.bonus
 
-                record_buf.append((prompt, response, role_mask, raw_reward))
+                if format_check(conv_dict):
+                    record_buf.append((prompt, response, role_mask, raw_reward))
+                else:
+                    logging.info("Drop invalid conv_dict")
+                    continue
 
                 # stats
                 seen += 1
@@ -246,7 +270,7 @@ def train(args):
                     success_turn_sum += interaction_num
 
                 # Print roll-out dialog
-                print_dialog(sample_idx, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
+                print_dialog(sample_idx, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations)
 
             sample_idx += 1
 
@@ -258,7 +282,7 @@ def train(args):
 
             # discard samples that have equal rewards: torch.isclose(raw_r.std(), torch.tensor(0.0))
             if torch.isclose(raw_r.std(), torch.tensor(0.0)) and args.dynamic_sampling:
-                print("Drop the samples")
+                logging.info("Drop the samples")
                 continue
             else:
                 # ---- push to trainer buffers -------------------------------------
