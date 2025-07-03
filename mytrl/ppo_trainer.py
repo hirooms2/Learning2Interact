@@ -632,9 +632,6 @@ class PPOTrainer(BaseTrainer):
         responses: List[torch.LongTensor],
         scores: List[torch.FloatTensor],
         response_masks: Optional[List[torch.LongTensor]] = None,
-        sft_prompts: Optional[List[torch.LongTensor]] = None,
-        sft_masks: Optional[List[torch.LongTensor]] = None,
-        sft_responses: Optional[List[torch.LongTensor]] = None,
     ):
         """
         Run a PPO optimisation step given a list of queries, model responses, and rewards.

@@ -195,26 +195,22 @@ def train(args):
         # sft_prompts, sft_responses = [], []
         # sft_max_len = 0
 
-        i = args.resume_start if args.resume_start != 0 and epoch == 0 else 0
+        sample_idx = args.resume_start if args.resume_start != 0 and epoch == 0 else 0
         step_num = 1
-        while i < len(train_data):
+        while sample_idx < len(train_data):
             # ───────────────────────────────── group (one dialog) ──────────────
             record_buf: List[Tuple[str,str,Tensor,float]] = []
-            sample = train_data[i]
+            sample = train_data[sample_idx]
 
             # ───────────────────────────────── Data prepare for SFT ──────────────
-            # sft_dialog = sample['dialog'][-5:]
-            # sft_dialog.insert(0, {'role': 'system', 'content': instruction})
-            # sft_interaction = sample['interaction'][:-1]
-            # sft_context = sft_dialog + sft_interaction
-            # original_context_len = len(tokenizer.apply_chat_template(sft_dialog, tokenize=True, add_generation_prompt=True))
-            # sft_prompt = tokenizer.apply_chat_template(sft_context, tokenize=False, add_generation_prompt=False)
-            # tokenized_prompt = tokenizer(sft_prompt, truncation=True, add_special_tokens=False)
-            # sft_input_ids = tokenized_prompt.input_ids
-            # sft_labels = sft_input_ids.copy()
-            # sft_labels = [token if idx >= original_context_len else -100 for idx, token in enumerate(sft_input_ids)]
-            # sft_max_len = max(sft_max_len, len(sft_input_ids))
-            target_turn_num = args.turn_num-args.turn_num_offset
+            if args.off_policy:
+                sft_conv_dict = sample['dialog'] + sample['interaction']
+                sft_orig_len = len(sample['dialog'])
+                sft_prompt = get_prompt(tokenizer, sft_conv_dict[:sft_orig_len], few_shot=args.few_shot)
+                sft_response, sft_role_mask = build_response_and_mask(tokenizer, sft_conv_dict, sft_orig_len, few_shot=args.few_shot)
+                record_buf.append((sft_prompt, sft_response, sft_role_mask, 1.0))
+
+            target_turn_num = args.turn_num - args.turn_num_offset
 
             for g_idx in range(args.num_generations):
                 conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
@@ -250,9 +246,9 @@ def train(args):
                     success_turn_sum += interaction_num
 
                 # Print roll-out dialog
-                print_dialog(i, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
+                print_dialog(sample_idx, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, g_idx+1, args.num_generations)
 
-            i += 1
+            sample_idx += 1
 
             # ---- reward normalisation (GRPO) ---------------------------------
             raw_r = torch.tensor([r for *_, r in record_buf], dtype=torch.float32)
@@ -271,37 +267,25 @@ def train(args):
                     responses.append(tokenizer(response, return_tensors="pt", add_special_tokens=False).input_ids.squeeze(0))
                     rewards.append(r.unsqueeze(0))
                     masks.append(mask_t)
-                # sft_prompts.append(sft_input_ids)
-                # sft_responses.append(sft_labels)
 
             # reach batch
-            if len(prompts) >= args.batch_size or i == len(train_data):
+            if len(prompts) >= args.batch_size or sample_idx == len(train_data):
                 trainer.config.batch_size = len(prompts)
                 
-                # ----SFT tokenizing -----------------------------------------
-                # sft_prompts = [[tokenizer.pad_token_id] * (sft_max_len-len(i)) + i  if len(i) < sft_max_len else i for i in sft_prompts]
-                # sft_responses = [[-100] * (sft_max_len-len(i)) + i  if len(i) < 808 else i for i in sft_responses]
-                # sft_prompts = torch.LongTensor(sft_prompts)
-                # sft_masks = (sft_prompts != tokenizer.pad_token_id).long() 
-                # sft_responses = torch.LongTensor(sft_responses)
-                
-                stats = trainer.step(prompts, responses, rewards, masks) #, sft_prompts, sft_masks, sft_responses)
+                stats = trainer.step(prompts, responses, rewards, masks)
 
                 # ---- simple logging ---------------------------------------
                 logging.info(
                     f"Step: {step_num} | loss: {stats['ppo/loss/policy']:.4f} | "
                     f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f}" )
                 prompts, responses, rewards, masks = [], [], [], []
-                
-                # sft_prompts, sft_responses = [], []
-                # sft_max_len = 0
 
                 step_num+=1
                 torch.cuda.empty_cache()
 
             # ---- save -------------------------------------------------
-            if trainer.accelerator.is_main_process and (i % 500 == 0 or i == len(train_data)):
-                out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{i}")
+            if trainer.accelerator.is_main_process and (sample_idx % args.save_turn == 0 or sample_idx == len(train_data)):
+                out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{sample_idx}")
                 trainer.save_pretrained(out_dir)
                 logging.info(f"✅ saved to {out_dir}")
 

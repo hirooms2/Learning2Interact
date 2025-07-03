@@ -8,6 +8,7 @@ def parse_args():
     # Log
     parser.add_argument('--log_name', type=str, default='log_name')
     parser.add_argument('--log_mode', type=str, default='eval')
+    parser.add_argument('--save_turn', type=int, default=500)
 
     # Generation
     parser.add_argument('--max_new_tokens', type=int, default=256)
@@ -68,6 +69,7 @@ def parse_args():
     parser.add_argument('--e_high', type=float, default=0.2)
     parser.add_argument('--e_low', type=float, default=0.2)
     parser.add_argument('--dynamic_sampling', action='store_true')
+    parser.add_argument('--off_policy', action='store_true')
 
     # SFT
     parser.add_argument('--train_only_interaction', action='store_true')
