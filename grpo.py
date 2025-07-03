@@ -153,7 +153,7 @@ def format_check(conv_dict):
             if f"{ranking_idx}. " not in utt['content']:
                 format_validity = False
                 break
-        if '11. ' in format_validity:
+        if '11. ' in utt['content']:
             format_validity = False
             break
     return format_validity
