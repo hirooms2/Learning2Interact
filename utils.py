@@ -19,7 +19,19 @@ from datetime import datetime
 import logging
 import sys
 from peft import PeftModel
+from torch.optim.lr_scheduler import LambdaLR
 
+
+
+def get_warmup_step_lr_scheduler(optimizer, warmup_steps, step_size, gamma):
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        else:
+            # 얼마나 많은 decay step이 지나갔는지 계산
+            num_decay_steps = (current_step - warmup_steps) // step_size
+            return gamma ** num_decay_steps
+    return LambdaLR(optimizer, lr_lambda)
 
 
 def prepare_data(data_path, rank, world_size, start=0, end=0, is_shuffle=True):

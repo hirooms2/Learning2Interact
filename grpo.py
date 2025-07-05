@@ -41,7 +41,7 @@ from trl import AutoModelForCausalLMWithValueHead, PPOConfig
 from mytrl.grpo_trainer import GRPOTrainer, GRPOConfig          # ← our fork
 
 # local helpers -------------------------------------------------------------
-from utils     import setup_tokenizer, load_base_model, load_peft_model, prepare_data
+from utils     import setup_tokenizer, load_base_model, load_peft_model, prepare_data, get_warmup_step_lr_scheduler
 from interact  import get_prompt, run_interaction, instruction
 from chatgpt   import ChatGPT
 from parser    import parse_args
@@ -117,14 +117,13 @@ def create_grpo_trainer(args):
 
     # total_steps = (num_samples // batch_size) * ppo_epochs
     # To estimate total steps roughly, assume 1000 samples per epoch (adjust as needed)
-    total_steps = int(((args.end-args.start) // args.batch_size) * args.epoch)
-    scheduler = get_scheduler(
-        name="linear",
+    # total_steps = int(((args.end-args.start) // args.batch_size) * args.epoch)
+    scheduler = get_warmup_step_lr_scheduler(
         optimizer=optimizer,
-        num_warmup_steps=100,
-        num_training_steps=total_steps,
+        warmup_steps=100,
+        step_size = 200,
+        gamma=0.5,
     )
-
     # ---- trainer ------------------------------------------------------------
     trainer = GRPOTrainer(config=cfg, model=model, ref_model=ref_model, tokenizer=tokenizer, optimizer=optimizer, lr_scheduler=scheduler)
     return trainer, model, tokenizer
@@ -287,7 +286,7 @@ def train(args):
                     success_turn_sum += interaction_num
 
                 # Print roll-out dialog
-                print_dialog(sample_idx, conv_dict, orig_len, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations)
+                print_dialog(sample_idx, conv_dict, len(conv_dict)-2*interaction_num, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations)
 
             sample_idx += 1
 
@@ -320,7 +319,7 @@ def train(args):
                 logging.info(
                     f"Step: {step_num} | loss: {stats['ppo/loss/policy']:.4f} | "
                     f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f} | " 
-                    f"lr: {current_lr:.6f}")
+                    f"lr: {current_lr:.8f}")
                 prompts, responses, rewards, masks = [], [], [], []
 
                 step_num+=1
