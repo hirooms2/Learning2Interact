@@ -111,8 +111,22 @@ def create_grpo_trainer(args):
         mini_batch_size = 1,
     )
 
+
+    # ---- optimizer + linear scheduler ---------------------------------------
+    optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.learning_rate)
+
+    # total_steps = (num_samples // batch_size) * ppo_epochs
+    # To estimate total steps roughly, assume 1000 samples per epoch (adjust as needed)
+    total_steps = int(((args.end-args.start) // args.batch_size) * args.epoch)
+    scheduler = get_scheduler(
+        name="linear",
+        optimizer=optimizer,
+        num_warmup_steps=100,
+        num_training_steps=total_steps,
+    )
+
     # ---- trainer ------------------------------------------------------------
-    trainer = GRPOTrainer(config=cfg, model=model, ref_model=ref_model, tokenizer=tokenizer)
+    trainer = GRPOTrainer(config=cfg, model=model, ref_model=ref_model, tokenizer=tokenizer, optimizer=optimizer, lr_scheduler=scheduler)
     return trainer, model, tokenizer
 
 # ---------------------------------------------------------------------------
@@ -242,6 +256,9 @@ def train(args):
                     is_train=True,
                 )
                 interaction_num = (len(conv_dict) - orig_len) // 2
+                if interaction_num > args.max_train_turn:
+                    orig_len += 2 * (interaction_num - args.max_train_turn)
+
                 if interaction_num > target_turn_num:
                     conv_dict = conv_dict[:-2 * (interaction_num-target_turn_num)]
 
@@ -297,11 +314,13 @@ def train(args):
                 trainer.config.batch_size = len(prompts)
                 
                 stats = trainer.step(prompts, responses, rewards, masks)
+                current_lr = trainer.optimizer.param_groups[0]["lr"]
 
                 # ---- simple logging ---------------------------------------
                 logging.info(
                     f"Step: {step_num} | loss: {stats['ppo/loss/policy']:.4f} | "
-                    f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f}" )
+                    f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f} | " 
+                    f"lr: {current_lr:.6f}")
                 prompts, responses, rewards, masks = [], [], [], []
 
                 step_num+=1
