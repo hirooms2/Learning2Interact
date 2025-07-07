@@ -112,16 +112,13 @@ def create_grpo_trainer(args):
     )
 
 
-    # ---- optimizer + linear scheduler ---------------------------------------
+    # ---- optimizer + step_lr scheduler ---------------------------------------
     optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.learning_rate)
 
-    # total_steps = (num_samples // batch_size) * ppo_epochs
-    # To estimate total steps roughly, assume 1000 samples per epoch (adjust as needed)
-    # total_steps = int(((args.end-args.start) // args.batch_size) * args.epoch)
     scheduler = get_warmup_step_lr_scheduler(
         optimizer=optimizer,
-        warmup_steps=100,
-        step_size = 200,
+        warmup_steps=0,
+        step_size = args.step_size,
         gamma=0.5,
     )
     # ---- trainer ------------------------------------------------------------
@@ -299,7 +296,7 @@ def train(args):
             # discard samples that have equal rewards: torch.isclose(raw_r.std(), torch.tensor(0.0))
             if torch.isclose(raw_r.std(), torch.tensor(0.0)) and args.dynamic_sampling:
                 logging.info("Drop the samples")
-                continue
+                # continue
             else:
                 # ---- push to trainer buffers -------------------------------------
                 for (prompt, response, mask_t, _), r in zip(record_buf, norm_r):

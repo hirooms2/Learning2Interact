@@ -30,7 +30,7 @@ def get_warmup_step_lr_scheduler(optimizer, warmup_steps, step_size, gamma):
         else:
             # 얼마나 많은 decay step이 지나갔는지 계산
             num_decay_steps = (current_step - warmup_steps) // step_size
-            return gamma ** num_decay_steps
+            return max(gamma ** num_decay_steps, 0.1)
     return LambdaLR(optimizer, lr_lambda)
 
 

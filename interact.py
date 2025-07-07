@@ -374,7 +374,7 @@ def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, i
 
     for t in range(args.turn_num):
 
-        recommender_text = chatgpt.annotate_completion(crs_prompt, model_name='gpt-4.1').strip()
+        recommender_text = chatgpt.annotate_completion(crs_prompt, model_name=args.gpt_model).strip()
         rec_items = chatgpt.get_rec(conv_dict, recommender_text)
         ## 수정 by BS
         rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
