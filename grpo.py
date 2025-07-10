@@ -129,7 +129,7 @@ def create_grpo_trainer(args):
 # util: build response string + per‑token role‑mask
 # ---------------------------------------------------------------------------
 
-def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: bool=False):
+def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: bool=False, recommendation_mask: bool=False):
     """Return (response_text, mask_tensor); mask=1 for **assistant** tokens, 0 for user tokens."""
     prompt_response = get_prompt(tokenizer, conv[:orig_len], few_shot=few_shot)
     role_masks: List[Tensor] = []
@@ -143,6 +143,15 @@ def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: b
         prompt_response += delta
         tok_len  = len(tokenizer(delta, add_special_tokens=False).input_ids)
         role_mask = torch.zeros(tok_len, dtype=torch.long) if is_user else torch.ones(tok_len, dtype=torch.long)
+        if is_user:
+            role_mask = torch.zeros(tok_len, dtype=torch.long)
+        elif recommendation_mask and ('recommendations:' in delta and idx != len(conv) - 2):
+            role_mask = torch.zeros(tok_len, dtype=torch.long)
+        else:
+            role_mask = torch.ones(tok_len, dtype=torch.long)
+
+        # role_mask = torch.zeros(tok_len, dtype=torch.long) if is_user else torch.ones(tok_len, dtype=torch.long)
+
         role_masks.append(role_mask)
 
     response_text = prompt_response[len(get_prompt(tokenizer, conv[:orig_len], few_shot=few_shot)):]
@@ -259,7 +268,7 @@ def train(args):
                     conv_dict = conv_dict[:-2 * (interaction_num-target_turn_num)]
 
                 prompt  = get_prompt(tokenizer, conv_dict[:orig_len], few_shot=args.few_shot)
-                response, role_mask = build_response_and_mask(tokenizer, conv_dict, orig_len, few_shot=args.few_shot)
+                response, role_mask = build_response_and_mask(tokenizer, conv_dict, orig_len, few_shot=args.few_shot, recommendation_mask=args.recommendation_mask)
 
                 raw_reward = 1.0 if rec_success and interaction_num <= target_turn_num else -args.reward
 
@@ -324,6 +333,8 @@ def train(args):
 
             # ---- save -------------------------------------------------
             if trainer.accelerator.is_main_process and (sample_idx % args.save_turn == 0 or sample_idx == len(train_data)):
+#            if trainer.accelerator.is_main_process and (step_num % args.save_turn == 0 or sample_idx == len(train_data)):
+
                 out_dir = os.path.join(args.home, 'model_weights', f"grpo_{tag}_{log_name}_E{epoch+1}_S{sample_idx}")
                 trainer.save_pretrained(out_dir)
                 logging.info(f"✅ saved to {out_dir}")

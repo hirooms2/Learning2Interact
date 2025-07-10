@@ -134,7 +134,7 @@ class ChatGPT():
         for attempt in Retrying(
                 reraise=True,
                 retry=retry_if_not_exception_type((openai.error.InvalidRequestError, openai.error.AuthenticationError)),
-                wait=my_wait_exponential(min=1, max=60), stop=(my_stop_after_attempt(8))
+                wait=my_wait_exponential(min=1, max=60), stop=(my_stop_after_attempt(16))
         ):
             with attempt:
                 response = openai.ChatCompletion.create(
