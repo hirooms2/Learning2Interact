@@ -302,8 +302,9 @@ def train(args):
             sigma = raw_r.std() if args.scale_rewards else 1.0
             norm_r = (raw_r - mu) / (sigma + 1e-6)
 
-            # discard samples that have equal rewards: torch.isclose(raw_r.std(), torch.tensor(0.0))
-            if torch.isclose(raw_r.std(), torch.tensor(0.0)) and args.dynamic_sampling:
+            # discard samples that have equal rewards: torch.isclose(raw_r.std(), torch.tensor(0.0)) torch.isclose(raw_r.std(), torch.tensor(0.0))
+            success_count = sum([r for *_, r in record_buf])
+            if args.dynamic_sampling and not (0 + args.sampling_threshold < success_count < args.num_generations - args.sampling_threshold):
                 logging.info("Drop the samples")
                 # continue
             else:
