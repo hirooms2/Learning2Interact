@@ -9,6 +9,7 @@ def parse_args():
     parser.add_argument('--log_name', type=str, default='log_name')
     parser.add_argument('--log_mode', type=str, default='eval')
     parser.add_argument('--save_turn', type=int, default=200)
+    parser.add_argument('--print_terminal', action='store_true')
 
     # Generation
     parser.add_argument('--max_new_tokens', type=int, default=256)
