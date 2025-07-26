@@ -351,7 +351,7 @@ def train(args):
                 logging.info(
                     f"Step: {step_num} | loss: {stats['ppo/loss/policy']:.4f} | "
                     f"kl: {stats['objective/kl']:.3f} | kl_coef: {trainer.kl_ctl.value:.4f} | " 
-                    f"entropy: {stats['policy/entropy']:.4f} | "
+                    f"entropy: {stats['objective/entropy']:.4f} | "
                     f"lr: {current_lr:.8f} | "
                     f"Hit: {hit / seen} | idx: {sample_idx}")
                 prompts, responses, rewards, masks = [], [], [], []
