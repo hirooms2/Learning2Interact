@@ -180,10 +180,10 @@ def get_conv(args, model, tokenizer, full_prompt):
         entropy = entropy.nan_to_num(nan=0.0)
         entropies.append(entropy)
 
-    # Convert entropies: list[Tensor(seq_i)] → Tensor(batch, gen_len)
-    entropy_tensor = torch.stack(entropies, dim=1).cpu()  # shape: (batch, gen_len)
+    # Convert entropies: list[Tensor(seq_i)] → list (gen_len)
+    entropy_list = torch.stack(entropies, dim=1).cpu().numpy().tolist()[0]  # shape: (gen_len)
 
-    return generated_responses, entropy_tensor[0].mean()
+    return generated_responses, entropy_list
 
 
 def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
@@ -195,9 +195,10 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         seeker_prompt += f"{'Recommender' if utt['role'] == 'assistant' else 'Seeker'}: {utt['content']}\n"
 
     rec_success = False
+    entropy_list_all = []
     for t in range(args.turn_num):
         full_prompt = get_prompt(tokenizer, conv_dict, few_shot=args.few_shot)
-        recommender_texts, entropy = get_conv(args, model, tokenizer, full_prompt)
+        recommender_texts, entropy_list = get_conv(args, model, tokenizer, full_prompt)
         rec_labels = [entity2id[item] for item in target_items]
 
         # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
@@ -316,11 +317,12 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         conv_dict += [{"role": "assistant", "content": recommender_text},
                       {"role": "user", "content": seeker_text}]
         seeker_prompt += f"{seeker_text}\n"
+        entropy_list_all += entropy_list
 
         if finish:
             break
 
-    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, entropy
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, float(np.mean(entropy_list_all))
 
 
 def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
