@@ -320,7 +320,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         if finish:
             break
 
-    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, entropy
 
 
 def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
