@@ -11,6 +11,7 @@ import nltk
 from thefuzz import fuzz
 from few_shot import few_shot_blocks
 from few_shot_new import few_shot_blocks_new, few_shot_blocks_query
+from torch.nn import functional as F
 
 
 instruction_prev = """You are a recommender engaging in a conversation with the user to provide recommendations.
@@ -146,6 +147,7 @@ def get_conv(args, model, tokenizer, full_prompt):
         num_beams=args.num_beams,
         num_return_sequences=args.num_beams,
         return_dict_in_generate=True,
+        output_scores=True, 
     )
     if args.do_sample:
         generation_config.do_sample = True
@@ -162,12 +164,26 @@ def get_conv(args, model, tokenizer, full_prompt):
             max_new_tokens=args.max_new_tokens,
             pad_token_id=tokenizer.pad_token_id
         )
-    s = generation_output.sequences
-    outputs = tokenizer.batch_decode(s, skip_special_tokens=True)
+    sequences = generation_output.sequences  # shape: (batch * num_return_sequences, seq_len)
+
+    outputs = tokenizer.batch_decode(sequences, skip_special_tokens=True)
     generated_responses = [output[output.rfind('assistant\n'):].split('assistant\n')[-1].replace('\n','').strip() for output in outputs]
     # generated_responses = output[output.rfind('assistant\n'):].split('assistant\n')[-1].replace('\n','').strip()
 
-    return generated_responses
+    # Compute entropy at each generation step
+    scores = generation_output.scores 
+    entropies = []
+    for score in scores:  # score: (batch_size * num_return_sequences, vocab_size)
+        probs = F.softmax(score, dim=-1)
+        log_probs = torch.log(probs.clamp(min=1e-10))
+        entropy = -(probs * log_probs).sum(dim=-1)
+        entropy = entropy.nan_to_num(nan=0.0)
+        entropies.append(entropy)
+
+    # Convert entropies: list[Tensor(seq_i)] → Tensor(batch, gen_len)
+    entropy_tensor = torch.stack(entropies, dim=1).cpu()  # shape: (batch, gen_len)
+
+    return generated_responses, entropy_tensor[0].mean()
 
 
 def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
@@ -181,7 +197,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
     rec_success = False
     for t in range(args.turn_num):
         full_prompt = get_prompt(tokenizer, conv_dict, few_shot=args.few_shot)
-        recommender_texts = get_conv(args, model, tokenizer, full_prompt)
+        recommender_texts, entropy = get_conv(args, model, tokenizer, full_prompt)
         rec_labels = [entity2id[item] for item in target_items]
 
         # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
@@ -318,7 +334,7 @@ def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items
     rec_success = False
     for t in range(args.turn_num):
         full_prompt_recommend = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='recommend')
-        recommender_texts = get_conv(args, model, tokenizer, full_prompt_recommend)
+        recommender_texts, _ = get_conv(args, model, tokenizer, full_prompt_recommend)
 
         rec_labels = [entity2id[item] for item in target_items]
 
@@ -344,7 +360,7 @@ def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items
             break
         
         full_prompt_query = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='query')
-        query_texts = get_conv(args, model, tokenizer, full_prompt_query)
+        query_texts, _ = get_conv(args, model, tokenizer, full_prompt_query)
         query_text = query_texts[0]
         conv_dict += [{"role": "assistant", "content": query_text}]
 

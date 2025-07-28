@@ -84,7 +84,7 @@ def main(args):
         target_items = test_dataset[i]['target_items']
 
         # TH: is_train False로
-        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
+        conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, entropy = run_interaction(
             args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2

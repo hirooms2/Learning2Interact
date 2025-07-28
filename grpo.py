@@ -274,7 +274,7 @@ def train(args):
             target_turn_num = args.turn_num - args.turn_num_offset
 
             while len(record_buf) < args.num_generations:
-                conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
+                conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids, entropy = run_interaction(
                     args, trainer.model, tokenizer, chatgpt,
                     sample['dialog'].copy(), sample['target_items'],
                     entity2id, id2entity,
