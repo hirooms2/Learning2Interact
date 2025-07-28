@@ -181,7 +181,7 @@ def format_check(conv_dict):
 # Print roll-out dialog
 # ---------------------------------------------------------------------------
 
-def print_dialog_withterminal(dialog_id, conv_dict, original_conv_len, rec_success, hit, sample_cnt, avg_turn, base_turn, reward, iter, num_generations):
+def print_dialog_withterminal(dialog_id, conv_dict, original_conv_len, rec_success, hit, sample_cnt, avg_turn, base_turn, reward, iter, entropy, num_generations):
     logging.info(f"################################# Dialog Case {dialog_id+1} ({iter} / {num_generations}) #################################")
 
     for idx, utt in enumerate(conv_dict):
@@ -201,7 +201,7 @@ def print_dialog_withterminal(dialog_id, conv_dict, original_conv_len, rec_succe
     logging.info(f"###################################################################################")
 
 
-def print_dialog(dialog_id, conv_dict, original_conv_len, rec_success, hit, sample_cnt, avg_turn, base_turn, reward, iter, num_generations, log_file_path):
+def print_dialog(dialog_id, conv_dict, original_conv_len, rec_success, hit, sample_cnt, avg_turn, base_turn, reward, iter, num_generations, entropy, log_file_path):
     with open(log_file_path, "a", encoding="utf-8") as f:
         f.write(f"################################# Dialog Case {dialog_id+1} ({iter} / {num_generations}) #################################\n")
 
@@ -220,6 +220,7 @@ def print_dialog(dialog_id, conv_dict, original_conv_len, rec_success, hit, samp
         avg_success_turn = avg_turn / hit if hit != 0 else 0
         f.write(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]\n")
         f.write(f"[[[base_turn: {base_turn:.3f} | reward: {reward:.1f}]]]\n")
+        f.write(f"[[[entropy: {entropy:.3f}]]]\n")
         f.write(f"###################################################################################\n")
 
 # ---------------------------------------------------------------------------
@@ -315,9 +316,9 @@ def train(args):
 
                 # Print roll-out dialog
                 if args.print_terminal:
-                    print_dialog_withterminal(sample_idx, conv_dict, len(conv_dict)-2*interaction_num, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations)
+                    print_dialog_withterminal(sample_idx, conv_dict, len(conv_dict)-2*interaction_num, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), entropy, args.num_generations)
                 else:
-                    print_dialog(sample_idx, conv_dict, len(conv_dict)-2*interaction_num, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations, log_file)
+                    print_dialog(sample_idx, conv_dict, len(conv_dict)-2*interaction_num, rec_success, hit, seen, success_turn_sum, sample['base_turn'], raw_reward, len(record_buf), args.num_generations, entropy, log_file)
 
             sample_idx += 1
 
