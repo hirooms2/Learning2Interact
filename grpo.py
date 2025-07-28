@@ -198,6 +198,7 @@ def print_dialog_withterminal(dialog_id, conv_dict, original_conv_len, rec_succe
     avg_success_turn = avg_turn / hit if hit != 0 else 0
     logging.info(f"[[[avg_success_turn: {avg_success_turn:.3f}]]]")
     logging.info(f"[[[base_turn: {base_turn:.3f} | reward: {reward:.1f}]]]")
+    logging.info(f"[[[entropy: {entropy:.3f}]]]")
     logging.info(f"###################################################################################")
 
 
