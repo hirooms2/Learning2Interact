@@ -302,8 +302,8 @@ def train(args):
                 else:
                     if interaction_num < sample['base_turn']:
                         raw_reward += args.bonus
-
-                if format_check(conv_dict):
+                
+                if format_check(conv_dict) or args.off_formatcheck:
                     record_buf.append((prompt, response, role_mask, raw_reward))
                 else:
                     logging.info("Drop invalid conv_dict")

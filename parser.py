@@ -72,6 +72,7 @@ def parse_args():
     parser.add_argument('--e_low', type=float, default=0.2)
     parser.add_argument('--dynamic_sampling', action='store_true')
     parser.add_argument('--off_policy', action='store_true')
+    parser.add_argument('--off_formatcheck', action='store_true')
     parser.add_argument('--recommendation_mask', action='store_true')
     parser.add_argument('--sampling_threshold', type=int, default=0)
 
