@@ -161,7 +161,24 @@ def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: b
 # Format check
 # ---------------------------------------------------------------------------
 
-def format_check(conv_dict):
+# def format_check(conv_dict):
+#     format_validity = True
+#     for utt in conv_dict:
+#         if utt['role'] == 'user':
+#             continue
+#         if 'recommendations:' not in utt['content']:
+#             continue
+#         for ranking_idx in range(1, 11):
+#             if f"{ranking_idx}. " not in utt['content']:
+#                 format_validity = False
+#                 break
+#         if '11. ' in utt['content']:
+#             format_validity = False
+#             break
+#     return format_validity
+
+# ------------ 여기부터 BS 수정
+def format_check(conv_dict, rec_format_check=False):
     format_validity = True
     for utt in conv_dict:
         if utt['role'] == 'user':
@@ -175,7 +192,10 @@ def format_check(conv_dict):
         if '11. ' in utt['content']:
             format_validity = False
             break
+    if rec_format_check and 'recommendations:' not in conv_dict[-2]['content']:
+            format_validity = False
     return format_validity
+# ------------ 여기까지 BS 수정
 
 # ---------------------------------------------------------------------------
 # Print roll-out dialog
@@ -303,7 +323,10 @@ def train(args):
                     if interaction_num < sample['base_turn']:
                         raw_reward += args.bonus
                 
-                if format_check(conv_dict) or args.off_formatcheck:
+                #if format_check(conv_dict) or args.off_formatcheck:
+                
+                # BS수정
+                if format_check(conv_dict, rec_success and args.rec_format_check) or args.rec_format_check:
                     record_buf.append((prompt, response, role_mask, raw_reward))
                 else:
                     logging.info("Drop invalid conv_dict")
