@@ -326,7 +326,7 @@ def train(args):
                 #if format_check(conv_dict) or args.off_formatcheck:
                 
                 # BS수정
-                if format_check(conv_dict, rec_success and args.rec_format_check) or args.rec_format_check:
+                if format_check(conv_dict, rec_success and args.rec_format_check) or args.off_formatcheck:
                     record_buf.append((prompt, response, role_mask, raw_reward))
                 else:
                     logging.info("Drop invalid conv_dict")
