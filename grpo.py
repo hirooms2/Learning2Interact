@@ -161,24 +161,7 @@ def build_response_and_mask(tokenizer, conv: list, orig_len: int, *, few_shot: b
 # Format check
 # ---------------------------------------------------------------------------
 
-# def format_check(conv_dict):
-#     format_validity = True
-#     for utt in conv_dict:
-#         if utt['role'] == 'user':
-#             continue
-#         if 'recommendations:' not in utt['content']:
-#             continue
-#         for ranking_idx in range(1, 11):
-#             if f"{ranking_idx}. " not in utt['content']:
-#                 format_validity = False
-#                 break
-#         if '11. ' in utt['content']:
-#             format_validity = False
-#             break
-#     return format_validity
-
-# ------------ 여기부터 BS 수정
-def format_check(conv_dict, rec_format_check=False):
+def format_check(conv_dict):
     format_validity = True
     for utt in conv_dict:
         if utt['role'] == 'user':
@@ -192,11 +175,28 @@ def format_check(conv_dict, rec_format_check=False):
         if '11. ' in utt['content']:
             format_validity = False
             break
-    if rec_format_check and 'recommendations:' not in conv_dict[-2]['content']:
-            format_validity = False
-            print(f"Wrong format generation : {conv_dict[-2]['content']}")   # BS 수정
     return format_validity
-# ------------ 여기까지 BS 수정
+
+# # ------------ 여기부터 BS 수정
+# def format_check(conv_dict, rec_format_check=False):
+#     format_validity = True
+#     for utt in conv_dict:
+#         if utt['role'] == 'user':
+#             continue
+#         if 'recommendations:' not in utt['content']:
+#             continue
+#         for ranking_idx in range(1, 11):
+#             if f"{ranking_idx}. " not in utt['content']:
+#                 format_validity = False
+#                 break
+#         if '11. ' in utt['content']:
+#             format_validity = False
+#             break
+#     if rec_format_check and 'recommendations:' not in conv_dict[-2]['content']:
+#             format_validity = False
+#             print(f"Wrong format generation : {conv_dict[-2]['content']}")   # BS 수정
+#     return format_validity
+# # ------------ 여기까지 BS 수정
 
 # ---------------------------------------------------------------------------
 # Print roll-out dialog
@@ -297,7 +297,7 @@ def train(args):
             target_turn_num = args.turn_num - args.turn_num_offset
 
             while len(record_buf) < args.num_generations:
-                conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids, entropy = run_interaction(
+                conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids, entropy, is_recommend = run_interaction(
                     args, trainer.model, tokenizer, chatgpt,
                     sample['dialog'].copy(), sample['target_items'],
                     entity2id, id2entity,
@@ -324,14 +324,29 @@ def train(args):
                     if interaction_num < sample['base_turn']:
                         raw_reward += args.bonus
                 
-                #if format_check(conv_dict) or args.off_formatcheck:
+                # TH 수정
                 
-                # BS수정
-                if format_check(conv_dict, rec_success and args.rec_format_check) or args.off_formatcheck:
-                    record_buf.append((prompt, response, role_mask, raw_reward))
+                if format_check(conv_dict) or args.off_formatcheck:
+                    is_drop = False
                 else:
+                    is_drop = True
+                if not is_drop and is_recommend and args.rec_format_check:
+                    is_drop = False
+                else:
+                    is_drop = True
+                
+                if is_drop:
                     logging.info("Drop invalid conv_dict")
                     continue
+                else:
+                    record_buf.append((prompt, response, role_mask, raw_reward))
+                
+                # # BS수정
+                # if format_check(conv_dict, rec_success and args.rec_format_check) or args.off_formatcheck:
+                #     record_buf.append((prompt, response, role_mask, raw_reward))
+                # else:
+                #     logging.info("Drop invalid conv_dict")
+                #     continue
 
                 # stats
                 seen += 1

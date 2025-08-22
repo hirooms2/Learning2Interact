@@ -322,7 +322,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         if finish:
             break
 
-    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, float(np.mean(entropy_list_all))
+    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, float(np.mean(entropy_list_all)), is_recommend
 
 
 def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
