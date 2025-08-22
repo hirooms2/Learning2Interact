@@ -194,6 +194,7 @@ def format_check(conv_dict, rec_format_check=False):
             break
     if rec_format_check and 'recommendations:' not in conv_dict[-2]['content']:
             format_validity = False
+            print(f"Wrong format generation : {conv_dict[-2]['content']}")   # BS 수정
     return format_validity
 # ------------ 여기까지 BS 수정
 
