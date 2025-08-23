@@ -177,6 +177,15 @@ def format_check(conv_dict):
             break
     return format_validity
 
+
+def rec_format_check_rule(conv_dict):
+    format_validity = True
+    if 'recommendations:' not in conv_dict[-2]['content']:
+            format_validity = False
+            print(f"Wrong format generation : {conv_dict[-2]['content']}")   # BS 수정
+    return format_validity
+
+
 # # ------------ 여기부터 BS 수정
 # def format_check(conv_dict, rec_format_check=False):
 #     format_validity = True
@@ -325,15 +334,21 @@ def train(args):
                         raw_reward += args.bonus
                 
                 # TH 수정
-                
                 if format_check(conv_dict) or args.off_formatcheck:
                     is_drop = False
                 else:
                     is_drop = True
-                if not is_drop and is_recommend and args.rec_format_check:
-                    is_drop = False
-                else:
-                    is_drop = True
+
+                if args.rec_format_check and not is_drop :
+                    if is_recommend:
+                        is_drop = False
+                    else:
+                        is_drop = True
+                elif args.rec_format_check_rule and not is_drop:
+                    if rec_success and rec_format_check_rule(conv_dict):
+                        is_drop = False
+                    else:
+                        is_drop = True
                 
                 if is_drop:
                     logging.info("Drop invalid conv_dict")
