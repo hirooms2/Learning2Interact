@@ -186,6 +186,17 @@ def rec_format_check_rule(conv_dict):
     return format_validity
 
 
+def rec_format_check_rule_generous(conv_dict):
+    if 'recommendations:' in conv_dict[-2]['content']:    
+        return True
+    if ':1.' in conv_dict[-2]['content']:    
+        return True
+    if ': 1.' in conv_dict[-2]['content']:    
+        return True
+
+    print(f"Wrong format generation : {conv_dict[-2]['content']}")
+    return False
+
 # # ------------ 여기부터 BS 수정
 # def format_check(conv_dict, rec_format_check=False):
 #     format_validity = True
@@ -346,6 +357,11 @@ def train(args):
                         is_drop = True
                 elif args.rec_format_check_rule and not is_drop:
                     if rec_success and rec_format_check_rule(conv_dict):
+                        is_drop = False
+                    else:
+                        is_drop = True
+                elif args.rec_format_check_rule_generous and not is_drop:
+                    if rec_success and rec_format_check_rule_generous(conv_dict):
                         is_drop = False
                     else:
                         is_drop = True
