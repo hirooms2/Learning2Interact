@@ -356,15 +356,17 @@ def train(args):
                     else:
                         is_drop = True
                 elif args.rec_format_check_rule and not is_drop:
-                    if rec_success and rec_format_check_rule(conv_dict):
-                        is_drop = False
-                    else:
-                        is_drop = True
+                    if rec_success:
+                        if rec_format_check_rule(conv_dict):
+                            is_drop = False
+                        else:
+                            is_drop = True
                 elif args.rec_format_check_rule_generous and not is_drop:
-                    if rec_success and rec_format_check_rule_generous(conv_dict):
-                        is_drop = False
-                    else:
-                        is_drop = True
+                    if rec_success:
+                        if rec_format_check_rule_generous(conv_dict):
+                            is_drop = False
+                        else:
+                            is_drop = True
                 
                 if is_drop:
                     logging.info("Drop invalid conv_dict")
