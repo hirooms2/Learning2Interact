@@ -64,7 +64,7 @@ def main(args):
     # Prepare dataset
     data_path = os.path.join(args.home, 'data', args.test_data)
     train_dataset = prepare_data(
-        data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=True
+        data_path, rank, world_size, start=args.start, end=args.end, is_shuffle=False
     )
 
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
