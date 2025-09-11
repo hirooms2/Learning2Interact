@@ -90,6 +90,9 @@ def parse_args():
     parser.add_argument('--api_key', type=str, default='')
     parser.add_argument('--gpt_model', type=str, default='gpt-4.1')
 
+    # Gemini API
+    parser.add_argument('--gemini_api_key', type=str, default='')
+
     # CRS Model
     parser.add_argument('--model_name', type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
     parser.add_argument('--model_path', type=str, default='')
