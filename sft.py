@@ -20,7 +20,7 @@ import logging
 import sys
 from random import shuffle
 from interact import instruction
-from utils import load_peft_model, setup_tokenizer
+from utils import load_peft_model
 
 # === Hyperparameters ===
 # MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -48,7 +48,7 @@ class QueryEvalCallback(TrainerCallback):
         peft_model.config.save_pretrained(path)
 
         
-def load_base_model(model_name):
+def load_base_model(model_name, model_path=''):
     device_map = {"": 0}
 
     world_size = int(os.environ.get("WORLD_SIZE", 1))
@@ -64,7 +64,7 @@ def load_base_model(model_name):
         bnb_4bit_quant_type="nf4",
     )
     base_model = AutoModelForCausalLM.from_pretrained(
-        model_name,
+        model_name if model_path == '' else model_path,
         quantization_config=bnb_config,
         torch_dtype=torch.bfloat16,
         device_map=device_map
