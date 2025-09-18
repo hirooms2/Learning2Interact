@@ -27,8 +27,8 @@ python train_grpo.py \
 import json, os, sys, re, logging
 from datetime import datetime
 from math import ceil
-from random import shuffle
 from typing import List, Tuple
+import random 
 
 import torch
 from torch import Tensor
@@ -305,6 +305,7 @@ def train(args):
             # ───────────────────────────────── group (one dialog) ──────────────
             record_buf: List[Tuple[str,str,Tensor,float]] = []
             sample = train_data[sample_idx]
+            default_conv_dict = sample['dialog'].copy()
 
             # ───────────────────────────────── Data prepare for SFT ──────────────
             if args.off_policy:
@@ -314,12 +315,17 @@ def train(args):
                 sft_response, sft_role_mask = build_response_and_mask(tokenizer, sft_conv_dict, sft_orig_len, few_shot=args.few_shot)
                 record_buf.append((sft_prompt, sft_response, sft_role_mask, 1.0))
 
+            if args.new_tgi:
+                if sample['base_turn'] > args.turn_num:
+                    tgi_offset = random.randint(0, sample['base_turn'] - args.turn_num)
+                    default_conv_dict += sample['interaction'][:tgi_offset * 2]
+                
             target_turn_num = args.turn_num - args.turn_num_offset
 
             while len(record_buf) < args.num_generations:
                 conv_dict, rec_success, orig_len, rec_names, rec_ids, topk_names, topk_ids, entropy, is_recommend = run_interaction(
                     args, trainer.model, tokenizer, chatgpt,
-                    sample['dialog'].copy(), sample['target_items'],
+                    default_conv_dict, sample['target_items'],
                     entity2id, id2entity,
                     last_turn_recommend=args.last_turn_recommend,
                     rec_success_recommend=args.rec_success_recommend,
