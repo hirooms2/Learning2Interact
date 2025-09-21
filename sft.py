@@ -86,7 +86,8 @@ def prepare_dataset(data_path, tokenizer, rank, world_size, train_only_interacti
     shuffle(all_data)
 
     # 데이터 분산 처리
-    data = all_data[rank::world_size]
+    # data = all_data[rank::world_size]
+    data = all_data
 
     dataset = []
     
