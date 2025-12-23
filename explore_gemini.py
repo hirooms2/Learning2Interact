@@ -21,11 +21,12 @@ import sys
 from random import shuffle
 from utils import setup_tokenizer, load_base_model, load_peft_model, prepare_data
 from torch.utils.data import Dataset, DataLoader
-#from chatgpt import ChatGPT
-from chatgpt_gemini import ChatGPT
+from chatgpt import ChatGPT
+from chatgpt_gemini import ChatGPT_gemini
 import google.generativeai as genai
+import openai
 
-from interact_gemini import run_explore, run_explore_gpt
+from interact_gemini import run_explore_gpt
 import random
 
 
@@ -38,7 +39,7 @@ import random
 
 
 def main(args):
-    #openai.api_key = args.api_key
+    openai.api_key = args.api_key
     genai.configure(api_key=args.gemini_api_key)
 
     mdhm = str(datetime.now(timezone('Asia/Seoul')).strftime('%m%d%H%M%S'))
@@ -74,6 +75,7 @@ def main(args):
     entity2id = json.load(open(os.path.join(args.home, f'data/{args.kg_dataset}/entity2id.json'), 'r'))
     id2entity = {int(v): k for k, v in entity2id.items()}
     chatgpt = ChatGPT(args)
+    chatgpt_gemini = ChatGPT_gemini(args)
     dialog_id = 0
     hit = 0
     avg_turn = 0
@@ -85,7 +87,7 @@ def main(args):
 
         # TH: is_train False로
         conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_explore_gpt(
-            args, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
+            args, chatgpt, chatgpt_gemini, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=True, is_train=False
         )
         interaction_num = (len(conv_dict) - original_conv_len) // 2
         all_samples.append({'context': conv_dict, 'original_conv_len': original_conv_len})

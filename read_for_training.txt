@@ -1,0 +1,47 @@
+# 작성자 : 안병수
+
+1. explore : TeacherLLM(=GPT 4.1)로 training data에 대해서 explore하여 SFT를 위한 데이터 생성하는 과정
+    
+    * 명령어 : python explore_gpt.py --num_beams="숫자" --kg_dataset="데이터셋 종류(inspired2 or redial)" --gpt_model="CRS역할 할 Teacher LLM" --start="숫자" --end="숫자" --test_data="대상 데이터셋" --log_name="로그 명";
+    
+    * FYI : 
+        1) --model_name에는 gemini-2.5-pro, gpt 4.1 입력, --num_beams는 5로 고정, --start와 --end는 데이터 범위 설정, --log는 로그파일명 설정, --kg_dataset은 default는 redial임
+        2) teacher LLM의 테스트 성능 볼때도 해당 코드 사용함. --test_data에 테스트 데이터셋 넣으면 됨
+        3) --gpt_model에 gpt 쓸때는 explore_gpt를 쓰고, Gemini 쓸때는 explore_gemini 사용
+    
+    * 예시 명령어
+        1) gpt-train : python explore_gpt.py  --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --num_beams=5 --kg_dataset=inspired2 --gpt_model=gpt-4.1 --end=1000 --test_data=inspired2_processed_train.json --log_name=inspired2_explore_gpt41_trainset_start0_end1000;
+        2) gpt-test : python explore_gpt.py  --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --num_beams=5 --kg_dataset=inspired2 --gpt_model=gpt-4.1 --test_data=inspired2_processed_test.json --log_name=inspired2_explore_gpt41_testset_all;
+        3) gemini-train : python explore_gemini.py  --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --num_beams=5 --kg_dataset=inspired2  --gpt_model=gemini-2.5-pro --end=600 --test_data=inspired2_processed_train.json --log_name=insp2_explore_gemini25pro_trainset_start0_end600;
+        4) gemini-test : python explore_gemini.py --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --num_beams=5 --gpt_model=gemini-2.5-pro --end=110 --kg_dataset=inspired2 --test_data=inspired2_processed_test.json --log_name=inspired2_explore_gemini25pro_testset_start0_end110;
+
+
+
+2. sft : 1. explore를 통해서 생성된 train set에 대한 Teacher LLM의 explore 결과를 활용해서 base model(Llama나 QWEN)을 sft하는 과정
+
+    * 명령어 : torchrun --nproc_per_node=2 sft.py --model_name="SFT시킬 base model(Llama나 QWEN)"  --epoch="숫자" --batch_size="숫자" --gradient_accumulation_steps="숫자" --learning_rate="숫자" --train_only_interaction --train_data="explore하고 reranking 까지된 train data" --log_name="로그명"
+
+    * FYI : 다른 세팅은 Hyperparameter라서 수정이 가능하나, 현재 세팅으로 TART는 진행(epoch=10, batch=2, gas=4, lr=3e-5, train_only_interaction)
+            다만, explore -> reranking, add_base_turn, make_sft_data 등등 을 통해서 얻은 train dataset이 있어야 돌릴수 있음
+
+    * 예시 명령어 : torchrun --nproc_per_node=2 sft.py --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct  --epoch=10 --batch_size=2 --gradient_accumulation_steps=4 --learning_rate=3e-5 --train_only_interaction --train_data=inspired2_processed_train_sft_gpt_success_rerank.json --log_name=inspired2_sft_train_epoch5_success_rerank;
+
+
+
+3. training(GRPO) : SFT된 모델에 TART 적용해서 강화학습 하는 과정
+
+    * 명령어 : CUDA_VISIBLE_DEVICES="GPU 번호" python grpo.py --train_data="train data" --model_name="base model(Llama, QWEN)" --ref_path="sft모델 path" --model_path="SFT 모델 or GRPO 학습중이던 모델" --epoch="숫자" --ppo_epoch="숫자" --batch_size="숫자" --learning_rate="숫자" --init_kl_coef="숫자" --hardcore --reward="숫자" --start="숫자" --end="숫자" --turn_num="숫자" --off_formatcheck --rerank --ref_model --do_sample --num_generations="숫자" --loss_type=grpo --dynamic_sampling --e_high="숫자" --step_size=350000 --log_name="로그명"; 
+
+    * FYI 
+        1) Hyperparameter 및 TART 사용 값 :   --epoch=2 --ppo_epoch=1 --batch_size=16 --learning_rate=5e-6 --init_kl_coef=0.1 --reward=0.0 --turn_num=2 --num_generations=8 --e_high=0.28 
+        2) 주요 args
+            a) --train_data : 모델 학습시킬 데이터 들어감. 다만, TGI 적용시키려면, ~~_last2.json 로 끝나는 데이터로 돌려야함
+            b) --model_path : 처음부터 학습 시킬 경우 sft 모델 입력, grpo하던 중 끊겼을 경우엔 중간 저장된 grpo 모델 입력
+            c) --ref_path : --model_path가 sft모델일 경우 생략 가능, grpo 모델 이어서 학습할 경우 sft 모델을 입력해야함 
+            d) --hardcore : OSR 적용을 위한 argument
+            e) --turn_num : 최대 interaction num을 설정하는 값으로 TART에선 2로 설정
+            f) --off_formatcheck : 해당 argument 입력시 11.~ 으로 추천하는 format에 어긋나는 입력일 지라도 drop 없이 계속 진행함, 특정 경우 외에는 사용하지 않음 자세한 내용은 코드 참고
+            g) --num_generations : input당 몇개의 roll out(sample) 생성할 건지 설정하는 argument이고 TART는 8로 고정
+        3) 고정 argument : --rerank, --ref_model, --do_sample, --loss_type, --dynamic_sampling, --step_size : 자세한 내용은 코드참고하고 그 외엔 고정해서 사용
+
+    * 예시 명령어 : CUDA_VISIBLE_DEVICES=0 python grpo.py --train_data=redial_processed_train_sft_gpt_cot_turn5_success_rerank3_last2interaction.json --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --model_path=grpo_0716162946_SFT_GRPO_DAPO_lr1e5_batch16_turnnum2_datasuclast2_step350000_from0_end5000_modelSFTTurn5Epoch10_hardcore_E1_S200 --ref_path=sft_model_0711173337_sft_train_5interaction_dialog-5_epoch10_lr3e-5_rerank3 --epoch=2 --ppo_epoch=1 --batch_size=16 --learning_rate=5e-6 --init_kl_coef=0.1 --reward=0.0 --resume_start=200 --end=5000 --turn_num=2 --hardcore --rec_format_check --rerank --ref_model --do_sample --num_generations=8 --loss_type=grpo --dynamic_sampling --e_high=0.28 --step_size=350000 --log_name=SFT_GRPO_DAPO_lr5e6_batch16_turnnum2_datasuclast2_step350000_start200_end5000_modelSFT5turn10epo_hardcore_recformatcheck_FromBESTSeedMODEL;

@@ -127,26 +127,49 @@ class ChatGPT():
     
 
     def annotate_completion(self, prompt, logit_bias=None, model_name='gpt-4.1-mini'):
-        if logit_bias is None:
-            logit_bias = {}
+        ## 병수 수정 gpt-5.2 ##
+        if "gpt-5.2" in model_name:
+            request_timeout = 20
+            for attempt in Retrying(
+                    reraise=True,
+                    retry=retry_if_not_exception_type(
+                        (openai.error.InvalidRequestError, openai.error.AuthenticationError)
+                    ),
+                    wait=my_wait_exponential(min=1, max=60),
+                    stop=my_stop_after_attempt(16),
+            ):
+                with attempt:
+                    response = openai.ChatCompletion.create(
+                        model=model_name,
+                        messages=[{'role': 'user', 'content': prompt}],
+                        temperature=0,
+                        request_timeout=request_timeout,
+                    )['choices'][0]['message']['content']
+                request_timeout = min(300, request_timeout * 2)
+            return response
+        else:
+        ## 여기 까지 ##
+        
+            if logit_bias is None:
+                logit_bias = {}
 
-        request_timeout = 20
-        for attempt in Retrying(
-                reraise=True,
-                retry=retry_if_not_exception_type((openai.error.InvalidRequestError, openai.error.AuthenticationError)),
-                wait=my_wait_exponential(min=1, max=60), stop=(my_stop_after_attempt(16))
-        ):
-            with attempt:
-                response = openai.ChatCompletion.create(
-                    model=model_name, 
-                    messages=[
-                        {'role': 'user', 'content': prompt}
-                    ], 
-                    temperature=0, logit_bias=logit_bias,
-                    request_timeout=request_timeout,
-                )['choices'][0]['message']['content']
-            request_timeout = min(300, request_timeout * 2)
-        return response
+            request_timeout = 20
+            for attempt in Retrying(
+                    reraise=True,
+                    retry=retry_if_not_exception_type((openai.error.InvalidRequestError, openai.error.AuthenticationError)),
+                    wait=my_wait_exponential(min=1, max=60), stop=(my_stop_after_attempt(16))
+            ):
+                with attempt:
+                    response = openai.ChatCompletion.create(
+                        model=model_name, 
+                        messages=[
+                            {'role': 'user', 'content': prompt}
+                        ], 
+                        temperature=0, logit_bias=logit_bias,
+                        request_timeout=request_timeout,
+                    )['choices'][0]['message']['content']
+                request_timeout = min(300, request_timeout * 2)
+            return response
 
 
     def get_rec(self, context_list, response=None):

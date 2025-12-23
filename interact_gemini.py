@@ -200,14 +200,12 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
         recommender_texts, entropy_list = get_conv(args, model, tokenizer, full_prompt)
         rec_labels = [entity2id[item] for item in target_items]
 
-        # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
-        # if not is_train:
+        
         recommender_texts = [recommender_texts[0]]
 
         for rtxt_idx in range(len(recommender_texts)):
             recommender_text = recommender_texts[rtxt_idx]
             rec_items = chatgpt.get_rec(conv_dict, recommender_text)
-            ## 수정 by BS
             rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
             rec_list = [id2entity[rec_label] for rec_label in rec_labels if rec_label in rec_items[0][:args.topk] ]
 
@@ -215,13 +213,9 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
             rec_names = target_items
             topk_ids = rec_items[0][:args.topk]
             topk_names = [id2entity[item] for item in topk_ids]
-            # TH: 정답 맞춘게 있으면 바로 패스 (불필요한 연산 줄이기 위해)
             if rec_success:
                 break
         
-        # TH: 추천에 실패했다면, 그냥 가장 처음의 응답으로
-        # if not rec_success:
-        #     recommender_text = recommender_texts[0]
 
         if (t == args.turn_num - 1 and last_turn_recommend) or (rec_success_recommend and rec_success):
             rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items[0][:10]))
@@ -234,12 +228,6 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
                     if target_item not in rec_list:
                         rec_list.append(target_item)
                     rec_success = True
-            # # Format check
-            # for ranking_idx in range(1, 11):
-            #     if f"{ranking_idx}. " not in recommender_text:
-            #         rec_success = False
-            # if '11. ' in recommender_text:
-            #     rec_success = False
 
         if rec_success and args.rerank and is_train:
             if 'here are some recommendations:' in recommender_text or 'here are some more recommendations:' in recommender_text:
@@ -261,15 +249,9 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
                     item = recommendation_part[start:end]
                     items.append(item[len(f'{idx+1}. '):].strip())
 
-                # items = recommendation_part.strip().split("\n")
                 parsed_items = [item.strip() for item in items if item.strip()]
 
-                # pattern = r'^(\d+)\.\s(.+)$'
-
-                # parsed = [
-                #     m[2] for item in parsed_items if (m := re.match(pattern, item))
-                # ]
-
+          
                 sorted = rec_list + [i for i in parsed_items if i not in rec_list]
                 final_recommendation_list = []
                 for i in sorted:
@@ -324,59 +306,7 @@ def run_interaction(args, model, tokenizer, chatgpt, default_conv_dict, target_i
     return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, float(np.mean(entropy_list_all)), is_recommend
 
 
-def run_explore(args, model, tokenizer, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
-    conv_dict = default_conv_dict.copy()
-    original_conv_len = len(conv_dict)
-    goal_item_str = ', '.join([f'"{item}"' for item in target_items])
-    seeker_prompt = chatgpt.get_instruction(goal_item_str)
-    for utt in conv_dict:
-        seeker_prompt += f"{'Recommender' if utt['role'] == 'assistant' else 'Seeker'}: {utt['content']}\n"
-
-    rec_success = False
-    for t in range(args.turn_num):
-        full_prompt_recommend = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='recommend')
-        recommender_texts, _ = get_conv(args, model, tokenizer, full_prompt_recommend)
-
-        rec_labels = [entity2id[item] for item in target_items]
-
-        # TH: beam이 1보다 클 경우, 응답을 하나씩 조사하여 정답을 맞춘 것을 최종 추천 응답으로 설정 (학습 시에만 해당) (최선을 다해서 추천을 해보게 함)
-        # if not is_train:
-        recommender_text = recommender_texts[0]
-
-        rec_items = chatgpt.get_rec(conv_dict, recommender_text)
-        ## 수정 by BS
-        rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
-        rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
-        
-        rec_ids = rec_labels
-        rec_names = target_items
-        topk_ids = rec_items[0][:args.topk]
-        topk_names = [id2entity[item] for item in topk_ids]
-        
-        if rec_success or t == args.turn_num - 1:
-            rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
-            rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
-            recommender_text = f"Here are some recommendations: {rec_items_str}"
-            conv_dict += [{"role": "assistant", "content": recommender_text}]
-            break
-        
-        full_prompt_query = get_prompt_purpose(tokenizer, conv_dict, few_shot=args.few_shot, purpose='query')
-        query_texts, _ = get_conv(args, model, tokenizer, full_prompt_query)
-        query_text = query_texts[0]
-        conv_dict += [{"role": "assistant", "content": query_text}]
-
-        seeker_prompt += f"Recommender: {query_text}\nSeeker:"
-        seeker_full_response = chatgpt.annotate_completion(seeker_prompt).strip()
-        crs_intent = seeker_full_response.split('2. Response:')[0].strip()
-        seeker_text = seeker_full_response.split('2. Response:')[-1].split('Response:')[-1].strip()
-
-        conv_dict += [{"role": "user", "content": seeker_text}]
-        seeker_prompt += f"{seeker_text}\n"
-
-    return conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids
-
-
-def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
+def run_explore_gpt(args, chatgpt, chatgpt_gemini, default_conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, rec_success_recommend=False, is_train=True):
     conv_dict = default_conv_dict.copy()
     original_conv_len = len(conv_dict)
     goal_item_str = ', '.join([f'"{item}"' for item in target_items])
@@ -391,9 +321,8 @@ def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, i
 
     for t in range(args.turn_num):
 
-        recommender_text = chatgpt.annotate_completion(crs_prompt, model_name=args.gpt_model).strip()
+        recommender_text = chatgpt_gemini.annotate_completion_gemini(crs_prompt, model_name=args.gemini_model).strip()
         rec_items = chatgpt.get_rec(conv_dict, recommender_text)
-        ## 수정 by BS
         rec_success = any(rec_label in rec_items[0][:args.topk] for rec_label in rec_labels)
         rec_list = [rec_label in rec_items[0][:args.topk] for rec_label in rec_labels]
         
@@ -402,10 +331,6 @@ def run_explore_gpt(args, chatgpt, default_conv_dict, target_items, entity2id, i
         topk_ids = rec_items[0][:args.topk]
         topk_names = [id2entity[item] for item in topk_ids]
         
-        # if rec_success or t == args.turn_num - 1:
-        #     rec_items_sorted = rec_labels + [i for i in rec_items[0][:10] if i not in rec_labels]
-        #     rec_items_str = "".join(f"{j+1}: {id2entity[rec]}" for j, rec in enumerate(rec_items_sorted[:10]))
-        #     recommender_text = f"Here are some recommendations: {rec_items_str}"
         conv_dict += [{"role": "assistant", "content": recommender_text}]
 
         seeker_prompt += f"Recommender: {recommender_text}\nSeeker: "

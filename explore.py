@@ -82,13 +82,6 @@ def main(args):
         dialog_id += 1
         conv_dict = test_dataset[i]['dialog'].copy()
         target_items = test_dataset[i]['target_items']
-
-        # TH: is_train False로
-        # conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids = run_interaction(
-        #     args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, is_train=False
-        # )
-
-        # BS : --rerank 하기 위해서 is_train True로
         conv_dict, rec_success, original_conv_len, rec_names, rec_ids, topk_names, topk_ids, entropy = run_interaction(
             args, model, tokenizer, chatgpt, conv_dict, target_items, entity2id, id2entity, last_turn_recommend=False, is_train=True
         )

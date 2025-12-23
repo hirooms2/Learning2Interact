@@ -1,0 +1,21 @@
+# 작성자 : 안병수
+
+1. inference : training한 모델로 test dataset에 대한 inference를 하는 과정
+
+    * 명령어 : CUDA_VISIBLE_DEVICES="GPU 번호" python inference.py --model_name="base model(Llama, QWEN)" --model_path="학습시킨 모델명" --kg_dataset="inference 할 데이터셋(미입력시 redial)"  --test_data="테스트 데이터셋" --num_beams="숫자" --start="숫자" --end="숫자" --log_name="로그명";
+
+    * FYI : 
+        1) --kg dataset : inference하는 데이터에 따라서 입력해야함, 미입력시 redial
+        2) --model_path : 테스트하고자 하는 모델 입력
+        3) --num_beams : beam search 위한 argument이고 TART에선 5로 고정
+        4) --start, --end : 데이터셋이 너무 커서 나눠서 테스트 돌리기위해서 사용 
+
+    * 예시 명령어 : CUDA_VISIBLE_DEVICES=0 python inference.py --model_name=meta-llama/Meta-Llama-3.1-8B-Instruct --model_path=grpo_0917134433_SFT_GRPO_DAPO_lr5e6_batch16_turnnum2_opendialkg_datasuclast2_hardcore_offformatcheck_step350000_start1600_end5000_2OO_2nd_E1_S3000 --kg_dataset=opendialkg --test_data=opendialkg_processed_test.json --num_beams=5 --end=300 --log_name=opendialkg_grpo_0917134433_2OO2nd_RQ1_S3000_start0_end300;
+
+2. evaluate, evaluate_mrr, evaluate_ndcg : inference 한 결과 evaluate 하는 코드
+
+    * 명령어 : python evaluate.py --log_name "테스트 결과 json 파일" --log_mode=eval
+
+    * FYI : --log_name에 json 파일을 넣어야하고 --log_model는 eval로 고정
+
+    * 예시 명령어 : python evaluate.py --log_name 0918131856_opendialkg_grpo_0917134433_2OO2nd_RQ1_S3000_merge --log_mode=eval

@@ -47,7 +47,7 @@ Here is the dialog:
 
 
 '''
-class ChatGPT():
+class ChatGPT_gemini():
     def __init__(self, args):
         self.args = args
         if hasattr(args, "gemini_api_key") and args.gemini_api_key:
@@ -90,7 +90,7 @@ class my_stop_after_attempt(stop_base):
         return retry_state.attempt_number >= self.max_attempt_number
     
 
-class ChatGPT():
+class ChatGPT_gemini():
     def __init__(self, args):
         self.args = args
 
@@ -132,7 +132,7 @@ class ChatGPT():
         return response
     
 
-    def annotate_completion(self, prompt, logit_bias=None, model_name='gpt-4.1-mini'):
+    def annotate_completion_gemini(self, prompt, logit_bias=None, model_name='gemini-2.5-pro'):
         if logit_bias is None:
             logit_bias = {}
         
